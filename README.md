@@ -94,6 +94,11 @@ of real components, all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in th
   quartic `y² = f₄(x)` with a real root, or a cubic with an `x²y` term, is brought to Weierstrass form and drawn
   through the corresponding model; anything else is reported with its genus. A typed equation is identified with
   its label when its curve lies in a shard already loaded (the first shard, conductor below 10,000, is always loaded).
+* **∞**, next to ℜ y / ℑ y, is Donu Arapura's animation from the old Sage notebook: the third coordinate becomes
+  `Re y cos θ + Im y sin θ` with θ turning at a chosen speed, so the real view (θ = 0) and the imaginary slice
+  (θ = 90°) are two of its frames. A thin row under the input has play/pause, a θ slider and the speed. Both parts
+  of `y` are vertex attributes and the mix is done in the vertex shader, with the normal from the surface's tangent
+  vectors, so the rotation costs no recomputation; links to it read `#anim:20.a3`.
 * Next to Plot, **ℜ y / ℑ y** chooses the third coordinate: `(Re x, Im x, Re y)`, a neighbourhood of the real
   points, or the imaginary slice `(Re x, Im x, Im y)`, in which the real points are not drawn. The mirror half is
   the complex conjugate, so in the imaginary slice it is reflected in both `Im x` and `Im y`. A link to the
