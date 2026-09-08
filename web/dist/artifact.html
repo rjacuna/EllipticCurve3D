@@ -14,35 +14,54 @@
   --bg: #ffffff; --panel: rgba(24,28,34,0.92); --panel-border: #3a414b; --text: #e8ecf1; --muted: #a2abb6;
   --accent: #5cc48f; --accent-2: #ff6b5e; --input-bg: #10141a; --shadow: 0 4px 18px rgba(0,0,0,0.5);
 }
-html, body { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
-#view { position: fixed; inset: 0; touch-action: none; }
-#view canvas { display: block; }
-#topbar { position: fixed; top: 0; left: 0; right: 0; padding: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+html, body { height: 100%; width: 100%; overflow: hidden; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+#view { position: fixed; inset: 0; overflow: hidden; touch-action: none; }
+#view canvas { display: block; max-width: 100%; }
+
+/* top bar: nothing in it may be wider than the viewport, so the select has a fixed width and the info line wraps */
+#topbar { position: fixed; top: 0; left: 0; right: 0; max-width: 100vw; box-sizing: border-box; padding: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
   background: var(--panel); border-bottom: 1px solid var(--panel-border); backdrop-filter: blur(6px); z-index: 5; box-shadow: var(--shadow); }
 #topbar input[type=text] { flex: 1 1 220px; min-width: 0; font: inherit; font-size: 16px; padding: 8px 10px; border: 1px solid var(--panel-border); border-radius: 8px; background: var(--input-bg); color: var(--text); }
 #topbar select, #topbar button, #panel button, #panel select { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--panel-border); background: var(--input-bg); color: var(--text); cursor: pointer; }
+#topbar button { flex: 0 0 auto; }
+#topbar select { flex: 0 0 auto; width: 9.5em; min-width: 0; max-width: calc(100vw - 16px); box-sizing: border-box; }
 #topbar button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
-#info { flex-basis: 100%; font-size: 13px; color: var(--muted); min-height: 1.2em; white-space: normal; }
+#info { flex-basis: 100%; min-width: 0; font-size: 13px; color: var(--muted); min-height: 1.2em; white-space: normal; overflow-wrap: anywhere; }
 #info b { color: var(--text); font-weight: 600; }
 #info .err { color: var(--accent-2); }
 #info .ok { color: var(--accent); }
-#panel { position: fixed; right: 8px; bottom: 8px; width: 300px; max-width: calc(100vw - 16px); max-height: 60vh; overflow: auto;
-  background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; padding: 10px 12px; z-index: 6; box-shadow: var(--shadow); backdrop-filter: blur(6px); }
-#panel[hidden] { display: none; }
+
+/* options drawer: slides in from the left; the tab on its right edge rides along with it */
+#drawer { position: fixed; left: 0; top: 50%; z-index: 6; width: min(300px, 85vw);
+  transform: translate(-100%, -50%); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
+#drawer.open { transform: translate(0, -50%); }
+#panel { box-sizing: border-box; width: 100%; max-height: min(80vh, calc(100vh - 140px)); overflow: auto; background: var(--panel); border: 1px solid var(--panel-border); border-left: 0;
+  border-radius: 0 12px 12px 0; padding: 10px 12px; box-shadow: var(--shadow); backdrop-filter: blur(6px); }
+/* the tab's text runs vertically, reading bottom to top; the element is rotated, so its logical right edge is the
+   visible left edge that touches the panel */
+#options-tab { position: absolute; left: 100%; top: 50%; margin-left: -1px; writing-mode: vertical-rl;
+  transform: translateY(-50%) rotate(180deg); transform-origin: center;
+  padding: 14px 9px; border: 1px solid var(--panel-border); border-right: 0; border-radius: 10px 0 0 10px;
+  background: var(--panel); color: var(--text); font: inherit; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 12px; cursor: pointer;
+  box-shadow: var(--shadow); backdrop-filter: blur(6px); white-space: nowrap; }
+#options-tab:hover, #options-tab:focus-visible { color: var(--accent); }
 #panel h3 { margin: 4px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 #panel label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; margin: 6px 0; font-size: 13px; }
 #panel label input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
 #panel label input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+#panel label select { min-width: 0; max-width: 100%; }
 #panel .val { color: var(--muted); font-variant-numeric: tabular-nums; }
 #panel .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 #panel .row button { flex: 1 1 auto; }
+@media (prefers-reduced-motion: reduce) { #drawer { transition: none; } }
+
 #hint { position: fixed; left: 8px; bottom: 8px; font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px 8px; z-index: 4; max-width: 60vw; }
 #hint[hidden] { display: none; }
 #busy { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 16px; z-index: 7; box-shadow: var(--shadow); }
 #busy[hidden] { display: none; }
 @media (max-width: 640px) {
-  #panel { left: 8px; right: 8px; width: auto; max-height: 45vh; }
+  #panel { max-height: 70vh; }
   #hint { display: none; }
 }
 
@@ -52,26 +71,28 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 syst
   <input id="input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="LMFDB label (20.a3), Cremona label (11a1), a-invariants [0,1,0,-1,0], or y^2 = x^3 + x^2 - x">
   <button id="plot" class="primary">Plot</button>
   <select id="examples" title="Examples"><option value="">Examples…</option></select>
-  <button id="toggle" title="Settings">⚙</button>
   <div id="info"></div>
 </div>
-<div id="panel" hidden>
-  <h3>Surface</h3>
-  <label>Grid points per side <span class="val" id="v-grid"></span><input id="grid" type="range" min="100" max="800" step="50"></label>
-  <label>Clipping radius <span class="val" id="v-radius"></span><input id="radius" type="range" min="0.5" max="12" step="0.1"></label>
-  <label>Inner cutoff <span class="val" id="v-cutoff"></span><input id="cutoff" type="range" min="0" max="6" step="0.05"></label>
-  <label>Opacity <span class="val" id="v-opacity"></span><input id="opacity" type="range" min="0.05" max="1" step="0.05"></label>
-  <h3>Lattice colouring</h3>
-  <label>Lines per period <span class="val" id="v-lines"></span><input id="lines" type="range" min="1" max="32" step="1"></label>
-  <label>Line softness <span class="val" id="v-soft"></span><input id="soft" type="range" min="0.03" max="0.6" step="0.01"></label>
-  <label>Colormap <select id="colormap"></select></label>
-  <h3>Show</h3>
-  <label>Real points E(ℝ) (red) <input id="real" type="checkbox"></label>
-  <label>Mirror half (whole torus) <input id="mirror" type="checkbox"></label>
-  <label>Axes <input id="axes" type="checkbox"></label>
-  <label>Clipping sphere <input id="sphere" type="checkbox"></label>
-  <div class="row"><button id="reset">Reset view</button><button id="snapshot">PNG</button><button id="share">Copy link</button></div>
-</div>
+<aside id="drawer" aria-label="Options">
+  <button id="options-tab" type="button" aria-controls="panel" aria-expanded="false">Options</button>
+  <div id="panel">
+    <h3>Surface</h3>
+    <label>Grid points per side <span class="val" id="v-grid"></span><input id="grid" type="range" min="100" max="800" step="50"></label>
+    <label>Clipping radius <span class="val" id="v-radius"></span><input id="radius" type="range" min="0.5" max="12" step="0.1"></label>
+    <label>Inner cutoff <span class="val" id="v-cutoff"></span><input id="cutoff" type="range" min="0" max="6" step="0.05"></label>
+    <label>Opacity <span class="val" id="v-opacity"></span><input id="opacity" type="range" min="0.05" max="1" step="0.05"></label>
+    <h3>Lattice colouring</h3>
+    <label>Lines per period <span class="val" id="v-lines"></span><input id="lines" type="range" min="1" max="32" step="1"></label>
+    <label>Line softness <span class="val" id="v-soft"></span><input id="soft" type="range" min="0.03" max="0.6" step="0.01"></label>
+    <label>Colormap <select id="colormap"></select></label>
+    <h3>Show</h3>
+    <label>Real points E(ℝ) (red) <input id="real" type="checkbox"></label>
+    <label>Mirror half (whole torus) <input id="mirror" type="checkbox"></label>
+    <label>Axes <input id="axes" type="checkbox"></label>
+    <label>Clipping sphere <input id="sphere" type="checkbox"></label>
+    <div class="row"><button id="reset">Reset view</button><button id="snapshot">PNG</button><button id="share">Copy link</button></div>
+  </div>
+</aside>
 <div id="hint">Drag to rotate · scroll or pinch to zoom · right-drag or two fingers to pan</div>
 <div id="busy" hidden>computing…</div>
 
@@ -2177,17 +2198,26 @@ async function plot(text) {
 }
 
 // ------------------------------------------------------------------ UI wiring
+// The last three examples are not elliptic curves; they exercise the error paths and are only offered when the
+// page was built with  build.py --dev  (which sets window.EC3D_DEV).
+const DEV = typeof window !== 'undefined' && !!window.EC3D_DEV;
 const EXAMPLES = [
   ['20.a3  (two real components)', '20.a3'], ['11a1  (one real component)', '11a1'], ['37a1  (rank 1)', '37a1'], ['389a1', '389a1'], ['5077a1', '5077a1'],
   ['y² = x³ − x', 'y^2 = x^3 - x'], ['y² + y = x³ − x²', 'y^2 + y = x^3 - x^2'], ['2y² = x³ − x  (scaled)', '2*y^2 = x^3 - x'],
   ['y² + x²y = x³ + 1  (quartic model)', 'y^2 + x^2*y = x^3 + 1'], ['y² = x⁴ − 3x² + x + 1  (quartic)', 'y^2 = x^4 - 3x^2 + x + 1'],
-  ['y² = x⁵ + 1  (genus 2)', 'y^2 = x^5 + 1'], ['y² = x²(x + 1)  (nodal cubic)', 'y^2 = x^2*(x+1)'], ['x³ + y³ = 1  (not Weierstrass)', 'x^3 + y^3 = 1'],
+  ['y² = x⁵ + 1  (genus 2)', 'y^2 = x^5 + 1', 'dev'], ['y² = x²(x + 1)  (nodal cubic)', 'y^2 = x^2*(x+1)', 'dev'], ['x³ + y³ = 1  (not Weierstrass)', 'x^3 + y^3 = 1', 'dev'],
 ];
-for (const [label, value] of EXAMPLES) { const o = document.createElement('option'); o.value = value; o.textContent = label; $('examples').appendChild(o); }
+for (const [label, value, dev] of EXAMPLES) {
+  if (dev && !DEV) continue;
+  const o = document.createElement('option'); o.value = value; o.textContent = label; $('examples').appendChild(o);
+}
 $('examples').addEventListener('change', e => { if (e.target.value) plot(e.target.value); e.target.value = ''; });
 $('plot').addEventListener('click', () => plot($('input').value));
 $('input').addEventListener('keydown', e => { if (e.key === 'Enter') plot($('input').value); });
-$('toggle').addEventListener('click', () => { $('panel').hidden = !$('panel').hidden; });
+// the options drawer slides in from the left; its tab rides on its right edge
+const drawer = $('drawer'), optionsTab = $('options-tab');
+function setOptionsOpen(open) { drawer.classList.toggle('open', open); optionsTab.setAttribute('aria-expanded', String(open)); }
+optionsTab.addEventListener('click', () => setOptionsOpen(!drawer.classList.contains('open')));
 for (const name of Object.keys(COLORMAPS)) { const o = document.createElement('option'); o.value = o.textContent = name; $('colormap').appendChild(o); }
 $('colormap').value = state.colormap;
 $('colormap').addEventListener('change', e => { state.colormap = e.target.value; setColormap(state.colormap); });
@@ -2212,7 +2242,6 @@ $('reset').addEventListener('click', resetView);
 $('snapshot').addEventListener('click', () => { renderer.render(scene, camera); const a = document.createElement('a'); a.href = renderer.domElement.toDataURL('image/png'); a.download = 'elliptic-curve-3d.png'; document.body.appendChild(a); a.click(); a.remove(); });
 $('share').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; setTimeout(() => $('share').textContent = 'Copy link', 1200); } catch (e) { prompt('Link:', location.href); } });
 setTimeout(() => { $('hint').hidden = true; }, 9000);
-if (!isMobile) $('panel').hidden = false;
 
 const initial = decodeURIComponent((location.hash || '').slice(1)) || '20.a3';
 plot(initial);

@@ -206,17 +206,26 @@ async function plot(text) {
 }
 
 // ------------------------------------------------------------------ UI wiring
+// The last three examples are not elliptic curves; they exercise the error paths and are only offered when the
+// page was built with  build.py --dev  (which sets window.EC3D_DEV).
+const DEV = typeof window !== 'undefined' && !!window.EC3D_DEV;
 const EXAMPLES = [
   ['20.a3  (two real components)', '20.a3'], ['11a1  (one real component)', '11a1'], ['37a1  (rank 1)', '37a1'], ['389a1', '389a1'], ['5077a1', '5077a1'],
   ['y² = x³ − x', 'y^2 = x^3 - x'], ['y² + y = x³ − x²', 'y^2 + y = x^3 - x^2'], ['2y² = x³ − x  (scaled)', '2*y^2 = x^3 - x'],
   ['y² + x²y = x³ + 1  (quartic model)', 'y^2 + x^2*y = x^3 + 1'], ['y² = x⁴ − 3x² + x + 1  (quartic)', 'y^2 = x^4 - 3x^2 + x + 1'],
-  ['y² = x⁵ + 1  (genus 2)', 'y^2 = x^5 + 1'], ['y² = x²(x + 1)  (nodal cubic)', 'y^2 = x^2*(x+1)'], ['x³ + y³ = 1  (not Weierstrass)', 'x^3 + y^3 = 1'],
+  ['y² = x⁵ + 1  (genus 2)', 'y^2 = x^5 + 1', 'dev'], ['y² = x²(x + 1)  (nodal cubic)', 'y^2 = x^2*(x+1)', 'dev'], ['x³ + y³ = 1  (not Weierstrass)', 'x^3 + y^3 = 1', 'dev'],
 ];
-for (const [label, value] of EXAMPLES) { const o = document.createElement('option'); o.value = value; o.textContent = label; $('examples').appendChild(o); }
+for (const [label, value, dev] of EXAMPLES) {
+  if (dev && !DEV) continue;
+  const o = document.createElement('option'); o.value = value; o.textContent = label; $('examples').appendChild(o);
+}
 $('examples').addEventListener('change', e => { if (e.target.value) plot(e.target.value); e.target.value = ''; });
 $('plot').addEventListener('click', () => plot($('input').value));
 $('input').addEventListener('keydown', e => { if (e.key === 'Enter') plot($('input').value); });
-$('toggle').addEventListener('click', () => { $('panel').hidden = !$('panel').hidden; });
+// the options drawer slides in from the left; its tab rides on its right edge
+const drawer = $('drawer'), optionsTab = $('options-tab');
+function setOptionsOpen(open) { drawer.classList.toggle('open', open); optionsTab.setAttribute('aria-expanded', String(open)); }
+optionsTab.addEventListener('click', () => setOptionsOpen(!drawer.classList.contains('open')));
 for (const name of Object.keys(COLORMAPS)) { const o = document.createElement('option'); o.value = o.textContent = name; $('colormap').appendChild(o); }
 $('colormap').value = state.colormap;
 $('colormap').addEventListener('change', e => { state.colormap = e.target.value; setColormap(state.colormap); });
@@ -241,7 +250,6 @@ $('reset').addEventListener('click', resetView);
 $('snapshot').addEventListener('click', () => { renderer.render(scene, camera); const a = document.createElement('a'); a.href = renderer.domElement.toDataURL('image/png'); a.download = 'elliptic-curve-3d.png'; document.body.appendChild(a); a.click(); a.remove(); });
 $('share').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; setTimeout(() => $('share').textContent = 'Copy link', 1200); } catch (e) { prompt('Link:', location.href); } });
 setTimeout(() => { $('hint').hidden = true; }, 9000);
-if (!isMobile) $('panel').hidden = false;
 
 const initial = decodeURIComponent((location.hash || '').slice(1)) || '20.a3';
 plot(initial);

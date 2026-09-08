@@ -3,25 +3,27 @@
   <input id="input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="LMFDB label (20.a3), Cremona label (11a1), a-invariants [0,1,0,-1,0], or y^2 = x^3 + x^2 - x">
   <button id="plot" class="primary">Plot</button>
   <select id="examples" title="Examples"><option value="">Examples…</option></select>
-  <button id="toggle" title="Settings">⚙</button>
   <div id="info"></div>
 </div>
-<div id="panel" hidden>
-  <h3>Surface</h3>
-  <label>Grid points per side <span class="val" id="v-grid"></span><input id="grid" type="range" min="100" max="800" step="50"></label>
-  <label>Clipping radius <span class="val" id="v-radius"></span><input id="radius" type="range" min="0.5" max="12" step="0.1"></label>
-  <label>Inner cutoff <span class="val" id="v-cutoff"></span><input id="cutoff" type="range" min="0" max="6" step="0.05"></label>
-  <label>Opacity <span class="val" id="v-opacity"></span><input id="opacity" type="range" min="0.05" max="1" step="0.05"></label>
-  <h3>Lattice colouring</h3>
-  <label>Lines per period <span class="val" id="v-lines"></span><input id="lines" type="range" min="1" max="32" step="1"></label>
-  <label>Line softness <span class="val" id="v-soft"></span><input id="soft" type="range" min="0.03" max="0.6" step="0.01"></label>
-  <label>Colormap <select id="colormap"></select></label>
-  <h3>Show</h3>
-  <label>Real points E(ℝ) (red) <input id="real" type="checkbox"></label>
-  <label>Mirror half (whole torus) <input id="mirror" type="checkbox"></label>
-  <label>Axes <input id="axes" type="checkbox"></label>
-  <label>Clipping sphere <input id="sphere" type="checkbox"></label>
-  <div class="row"><button id="reset">Reset view</button><button id="snapshot">PNG</button><button id="share">Copy link</button></div>
-</div>
+<aside id="drawer" aria-label="Options">
+  <button id="options-tab" type="button" aria-controls="panel" aria-expanded="false">Options</button>
+  <div id="panel">
+    <h3>Surface</h3>
+    <label>Grid points per side <span class="val" id="v-grid"></span><input id="grid" type="range" min="100" max="800" step="50"></label>
+    <label>Clipping radius <span class="val" id="v-radius"></span><input id="radius" type="range" min="0.5" max="12" step="0.1"></label>
+    <label>Inner cutoff <span class="val" id="v-cutoff"></span><input id="cutoff" type="range" min="0" max="6" step="0.05"></label>
+    <label>Opacity <span class="val" id="v-opacity"></span><input id="opacity" type="range" min="0.05" max="1" step="0.05"></label>
+    <h3>Lattice colouring</h3>
+    <label>Lines per period <span class="val" id="v-lines"></span><input id="lines" type="range" min="1" max="32" step="1"></label>
+    <label>Line softness <span class="val" id="v-soft"></span><input id="soft" type="range" min="0.03" max="0.6" step="0.01"></label>
+    <label>Colormap <select id="colormap"></select></label>
+    <h3>Show</h3>
+    <label>Real points E(ℝ) (red) <input id="real" type="checkbox"></label>
+    <label>Mirror half (whole torus) <input id="mirror" type="checkbox"></label>
+    <label>Axes <input id="axes" type="checkbox"></label>
+    <label>Clipping sphere <input id="sphere" type="checkbox"></label>
+    <div class="row"><button id="reset">Reset view</button><button id="snapshot">PNG</button><button id="share">Copy link</button></div>
+  </div>
+</aside>
 <div id="hint">Drag to rotate · scroll or pinch to zoom · right-drag or two fingers to pan</div>
 <div id="busy" hidden>computing…</div>

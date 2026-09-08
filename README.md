@@ -81,11 +81,14 @@ three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω�
   such as `2y² = x³ − x` is rescaled to a monic model and the surface drawn in the original coordinates; a
   quartic `y² = f₄(x)` with a real root, or a cubic with an `x²y` term, is brought to Weierstrass form and drawn
   through the corresponding model; anything else is reported with its genus.
-* Controls: grid size, clipping radius and inner cutoff (done in the shader), opacity, lines per period and
-  line softness, colormap, real points, the mirror half, axes, the clipping sphere, PNG export, and a shareable
-  link (`#20.a3`, or `#` followed by the equation).
+* Controls live in a drawer that slides in from the left when you click the **Options** tab: grid size, clipping
+  radius and inner cutoff (done in the shader), opacity, lines per period and line softness, colormap, real
+  points, the mirror half, axes, the clipping sphere, PNG export, and a shareable link (`#20.a3`, or `#`
+  followed by the equation).
+* The examples menu lists elliptic curves only. `python3 web/build.py --dev` also adds three inputs that are not
+  elliptic curves (genus 2, a nodal cubic, a cubic not in Weierstrass form), which exercise the error messages.
 
-Development layout, assembled by `python3 web/build.py`:
+Development layout, assembled by `python3 web/build.py` (add `--dev` for the extra examples):
 
 | path | |
 |---|---|
