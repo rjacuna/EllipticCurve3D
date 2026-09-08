@@ -1,4 +1,4 @@
-/* app.js -- viewer and UI for the EllipticCurve3D web app.  Globals: THREE, EC3D, CURVE_TABLE, COLORMAPS. */
+/* app.js -- viewer and UI for the EllipticCurve3D web app.  Globals: THREE, katex, EC3D, Cremona, COLORMAPS. */
 (function () {
 'use strict';
 const $ = id => document.getElementById(id);
@@ -232,22 +232,33 @@ function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText()].
 function updateHash(text) { try { history.replaceState(null, '', '#' + (state.slice === 'im' ? 'im:' : '') + encodeURIComponent(text)); } catch (e) {} }
 function nextFrame() { return new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); }
 
+// a label is looked up in Cremona's tables, fetched shard by shard (js/cremona.js)
+async function resolveLabel(p) {
+  let r;
+  try { r = await Cremona.lookup(p.label); }
+  catch (e) { throw new Error(`the curve tables could not be loaded (${e.message}); serve the app over http, e.g. python3 -m http.server`); }
+  if (r && r.missing) throw new Error(`conductor ${p.N} is beyond Cremona's tables (conductor ≤ ${Cremona.maxConductor()}); paste the a-invariants from https://www.lmfdb.org/EllipticCurve/Q/${p.label}/`);
+  if (!r) throw new Error(`there is no curve ${p.label} in Cremona's tables`);
+  return r;
+}
 async function plot(text) {
   text = text.trim(); if (!text) return;
   lastText = text; $('input').value = text;
   updateHash(text);
   $('busy').hidden = false; await nextFrame();
   try {
-    const parsed = EC3D.parseInput(text, CURVE_TABLE);
+    const parsed = EC3D.parseInput(text);
     let desc = [];
     model = null; curveInfo = null;
     if (parsed.error) throw new Error(parsed.error);
     if (parsed.type === 'label' || parsed.type === 'ainvs') {
-      const m = EC3D.modelFromAinvs(parsed.ainvs);
-      if (m.singular) throw new Error(`singular Weierstrass cubic ($\\Delta = 0$): $${EC3D.formatWeierstrassTeX(parsed.ainvs)}$`);
+      let ainvs = parsed.ainvs, rec = null;
+      if (parsed.type === 'label') { rec = await resolveLabel(parsed); ainvs = rec.ainvs.map(v => EC3D.Q.of(v)); }
+      else rec = Cremona.findByAinvs(ainvs.map(v => Number(v.toString())));
+      const m = EC3D.modelFromAinvs(ainvs);
+      if (m.singular) throw new Error(`singular Weierstrass cubic ($\\Delta = 0$): $${EC3D.formatWeierstrassTeX(ainvs)}$`);
       model = m;
-      const rec = parsed.rec || EC3D.findByAinvs(parsed.ainvs.map(v => Number(v.toString())), CURVE_TABLE);
-      desc.push(`<span class="eq">${T(EC3D.formatWeierstrassTeX(parsed.ainvs))}</span>`);
+      desc.push(`<span class="eq">${T(EC3D.formatWeierstrassTeX(ainvs))}</span>`);
       if (rec) desc.push(esc(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`));
     } else {
       const an = parsed.analysis;
@@ -260,7 +271,7 @@ async function plot(text) {
       model = an.model;
       desc.push(`<span class="eq">${T(EC3D.btex(an.F) + ' = 0')}</span>`);
       if (an.kind === 'weierstrass' && model.ainvsQ) {
-        const rec = EC3D.findByAinvs(model.ainvsQ.map(v => Number(v.toString())), CURVE_TABLE);
+        const rec = Cremona.findByAinvs(model.ainvsQ.map(v => Number(v.toString())));
         if (rec) desc.push(esc(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`));
       } else desc.push(esc(an.kind));
       desc.push(...an.notes.map(mixed));
@@ -284,9 +295,8 @@ async function plot(text) {
 }
 
 // ------------------------------------------------------------------ UI wiring
-// The last three examples are not elliptic curves; they exercise the error paths and are only offered when the
-// page was built with  build.py --dev  (which sets window.EC3D_DEV).
-const DEV = typeof window !== 'undefined' && !!window.EC3D_DEV;
+// The last three examples are not elliptic curves; they exercise the error paths and are only offered with ?dev in the URL.
+const DEV = new URLSearchParams(location.search).has('dev') || (typeof window !== 'undefined' && !!window.EC3D_DEV);
 const EXAMPLES = [
   ['20.a3  (two real components)', '20.a3'], ['11a1  (one real component)', '11a1'], ['37a1  (rank 1)', '37a1'], ['389a1', '389a1'], ['5077a1', '5077a1'],
   ['y² = x³ − x', 'y^2 = x^3 - x'], ['y² + y = x³ − x²', 'y^2 + y = x^3 - x^2'], ['2y² = x³ − x  (scaled)', '2*y^2 = x^3 - x'],
@@ -364,6 +374,7 @@ $('snapshot').addEventListener('click', () => { renderer.render(scene, camera); 
 $('share').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; setTimeout(() => $('share').textContent = 'Copy link', 1200); } catch (e) { prompt('Link:', location.href); } });
 setTimeout(() => { $('hint').hidden = true; }, 9000);
 
+Cremona.ensure(11).catch(() => {});                              // warm the first shard: examples and curve identification
 let initial = decodeURIComponent((location.hash || '').slice(1));
 if (initial.startsWith('im:')) { initial = initial.slice(3); setSlice('im', true); }
 plot(initial || '20.a3');

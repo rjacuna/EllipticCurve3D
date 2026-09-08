@@ -3,10 +3,11 @@
 import { createRequire } from 'module';
 import fs from 'fs';
 const require = createRequire(import.meta.url);
-const EC3D = require('../src/ec3d-math.js');
+const EC3D = require('../js/ec3d-math.js');
 const V = JSON.parse(fs.readFileSync(new URL('./vectors.json', import.meta.url)));
-const tableSrc = fs.readFileSync(new URL('../src/curves-data.js', import.meta.url), 'utf8');
-const CURVE_TABLE = new Function(tableSrc + '; return CURVE_TABLE;')();
+const Cremona = require('../js/cremona.js');
+Cremona.base = new URL('../data/cremona/', import.meta.url).pathname;
+Cremona.fetchJSON = async p => JSON.parse(fs.readFileSync(p, 'utf8'));
 const { Q } = EC3D;
 
 let pass = 0, fail = 0; const failures = [];
@@ -16,11 +17,23 @@ const crel = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) / Math.max(1, Math.h
 
 // ---- labels ----
 for (const c of V.curves) {
-  const r1 = EC3D.lookupLabel(c.label, CURVE_TABLE), r2 = EC3D.lookupLabel(c.lmfdb, CURVE_TABLE);
+  const r1 = await Cremona.lookup(c.label), r2 = await Cremona.lookup(c.lmfdb);
   check(`label ${c.label}`, r1 && r1.ainvs.join() === c.ainvs.join() && r1.lmfdb === c.lmfdb, JSON.stringify(r1));
   check(`lmfdb ${c.lmfdb}`, r2 && r2.ainvs.join() === c.ainvs.join() && r2.cremona === c.label);
 }
-check('unknown label', EC3D.lookupLabel('999999a1', CURVE_TABLE) === null);
+check('no such curve', (await Cremona.lookup('11a4')) === null);
+check('beyond the tables', (await Cremona.lookup('999999a1')).missing === true);
+{ // the last shard: every curve is found under both labels and the labels round-trip
+  const idx = await Cremona.loadIndex(), last = idx.shards[idx.shards.length - 1], shard = await Cremona.ensure(last.lo);
+  let n = 0, bad = 0;
+  for (const N in shard) for (const [cl, ll, curves] of shard[N]) for (let i = 0; i < curves.length; i++) {
+    const a = await Cremona.lookup(`${N}${cl}${i + 1}`), b = await Cremona.lookup(`${N}.${ll}${curves[i][0]}`);
+    n++; if (!a || !b || a.lmfdb !== b.lmfdb || a.cremona !== b.cremona || a.ainvs.join() !== curves[i].slice(1).join()) bad++;
+    if (n >= 20000) break;
+  }
+  check(`shard ${last.file}: labels round-trip`, n > 1000 && bad === 0, `${bad} bad of ${n}`);
+  check('index: 50 shards to 499999', idx.shards.length === 50 && idx.max_conductor === 499999 && idx.curves > 3000000, JSON.stringify([idx.shards.length, idx.max_conductor, idx.curves]));
+}
 
 // ---- invariants, periods, wp ----
 let altBasis = 0;
@@ -61,8 +74,8 @@ for (const c of V.curves) {
 console.log(`normalised basis differs from Sage's (but valid) for ${altBasis} of ${V.curves.length} curves`);
 
 // ---- grid + real components ----
-function gridChecks(label, expectComponents, radius = 3) {
-  const rec = EC3D.lookupLabel(label, CURVE_TABLE);
+async function gridChecks(label, expectComponents, radius = 3) {
+  const rec = await Cremona.lookup(label);
   const model = EC3D.modelFromAinvs(rec.ainvs.map(v => Q.of(v)));
   const g = EC3D.buildGrid(model, 101);
   const [a1, a2, a3, a4, a6] = rec.ainvs;
@@ -85,11 +98,11 @@ function gridChecks(label, expectComponents, radius = 3) {
   check(`real components ${label}`, comps.length === expectComponents, `${comps.length} components: ${comps.map(c => c.length)}`);
   return comps;
 }
-const comps20 = gridChecks('20.a3', 2);
+const comps20 = await gridChecks('20.a3', 2);
 check('oval closed', comps20.some(c => c.length > 50 && Math.hypot(c[0][0] - c[c.length - 1][0], c[0][2] - c[c.length - 1][2]) < 1e-9));
-gridChecks('11a1', 1, 8);      // its real points start at x = 4.35, outside a radius-3 ball
-gridChecks('11a1', 0, 3);
-gridChecks('37a1', 2);
+await gridChecks('11a1', 1, 8);      // its real points start at x = 4.35, outside a radius-3 ball
+await gridChecks('11a1', 0, 3);
+await gridChecks('37a1', 2);
 
 // ---- equations ----
 const eq = (s) => EC3D.analyzeEquation(s);
@@ -134,12 +147,13 @@ for (const bad of ['y^2 = x^3 + z', 'y^2 = x^(3', 'y^2 / x = 1', 'y^2 = x^3 = 1'
   check(`rejects ${bad}`, threw);
 }
 // ---- input dispatch ----
-check('input label', EC3D.parseInput('20.a3', CURVE_TABLE).rec.ainvs.join() === '0,1,0,-1,0');
-check('input cremona', EC3D.parseInput('20a2', CURVE_TABLE).rec.lmfdb === '20.a3');
-check('input ainvs', EC3D.parseInput('[0,1,0,-1,0]', CURVE_TABLE).ainvs.map(String).join() === '0,1,0,-1,0');
-check('input ainvs bare', EC3D.parseInput('0, 1, 0, -1, 0', CURVE_TABLE).type === 'ainvs');
-check('input unknown label', !!EC3D.parseInput('999999a1', CURVE_TABLE).error);
-check('input equation', EC3D.parseInput('y^2 = x^3 - x', CURVE_TABLE).type === 'equation');
+{ const p = EC3D.parseInput('20.a3'); check('input label', p.type === 'label' && p.N === 20 && p.lmfdb === true && (await Cremona.lookup(p.label)).ainvs.join() === '0,1,0,-1,0'); }
+{ const p = EC3D.parseInput('20a2'); check('input cremona', p.type === 'label' && p.lmfdb === false && (await Cremona.lookup(p.label)).lmfdb === '20.a3'); }
+check('input ainvs', EC3D.parseInput('[0,1,0,-1,0]').ainvs.map(String).join() === '0,1,0,-1,0');
+check('input ainvs bare', EC3D.parseInput('0, 1, 0, -1, 0').type === 'ainvs');
+check('input label unresolved', EC3D.parseInput('999999a1').type === 'label');
+check('input equation', EC3D.parseInput('y^2 = x^3 - x').type === 'equation');
+check('findByAinvs over loaded shards', (Cremona.findByAinvs([0, 1, 0, -1, 0]) || {}).lmfdb === '20.a3');
 check('format', EC3D.formatWeierstrass([0, -1, 1, -10, -20].map(v => Q.of(v))) === 'y² + y = x³ - x² - 10x - 20', EC3D.formatWeierstrass([0, -1, 1, -10, -20].map(v => Q.of(v))));
 
 { const seen = {}; for (const f of failures) { const k = f.split(' ')[0]; seen[k] = (seen[k] || 0) + 1; if (seen[k] <= 3) console.log('  FAIL', f); } }

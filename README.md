@@ -70,41 +70,62 @@ Checks: `sage -python run_doctests.py` (81 doctests) and `sage verify.sage`.
 
 ## The web app
 
-`web/dist/index.html` is the whole app in one file: open it directly or host it anywhere. It takes an LMFDB
-label (`20.a3`), a Cremona label (`11a1`), a-invariants (`[0,1,0,-1,0]`), or an equation, draws the surface with
-three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω₂`, `τ` and the number of real components,
-all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in the complex-analysis books).
+`web/` is a single-page application in the usual shape, `index.html` with `js/`, `css/` and `data/`, and no build
+step: serve the folder and open it.
 
-* Labels resolve from an offline table of every curve of conductor below 10000 from Sage's copy of Cremona's
-  tables, with both label systems (`web/src/curves-data.js`, 64,687 curves). lmfdb.org's API sends no CORS
-  header, so a browser page cannot query it; for a larger conductor paste the a-invariants from the LMFDB page.
-* Equations are parsed with exact rational arithmetic. Weierstrass equations are used as given; a scaled one
+```bash
+python3 -m http.server -d ~/Projects/EllipticCurve3D/web 8765      # then http://localhost:8765/
+```
+
+It takes an LMFDB label (`20.a3`), a Cremona label (`11a1`), a-invariants (`[0,1,0,-1,0]`), or an equation, draws
+the surface with three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω₂`, `τ` and the number
+of real components, all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in the complex-analysis books).
+
+* **Labels** resolve from Cremona's tables, every curve of conductor up to 499,999 with both label systems:
+  3,064,705 curves in `data/cremona/`, split into 50 JSON shards of 10,000 conductors (about 2 MB each, 108 MB
+  in all) that are fetched on demand and cached, so a lookup costs one small download. The tables come from
+  John Cremona's [ecdata](https://github.com/JohnCremona/ecdata) (`allcurves` and `alllabels`, Artistic
+  License 2.0); `data/make_cremona.py` rebuilds the shards from a checkout. Sage's bundled database stops at
+  conductor 9,999, so this is far more than `EllipticCurve("...")` can resolve locally. Beyond 499,999 the app
+  asks for the a-invariants from the LMFDB page. lmfdb.org's API sends no CORS header, so it cannot be queried
+  from a browser page, which is why the tables are shipped.
+* **Equations** are parsed with exact rational arithmetic. Weierstrass equations are used as given; a scaled one
   such as `2y² = x³ − x` is rescaled to a monic model and the surface drawn in the original coordinates; a
   quartic `y² = f₄(x)` with a real root, or a cubic with an `x²y` term, is brought to Weierstrass form and drawn
-  through the corresponding model; anything else is reported with its genus.
-* Next to Plot, **Re y / Im y** chooses the third coordinate: `(Re x, Im x, Re y)`, a neighbourhood of the real
-  points, or the imaginary slice `(Re x, Im x, Im y)`, in which the real points are not drawn (there they lie in the
-  plane `Im y = 0`, not on a curve of the picture). The mirror half is the complex conjugate, so in the imaginary
-  slice it is reflected in both `Im x` and `Im y`. A link to the imaginary slice reads `#im:20.a3`.
+  through the corresponding model; anything else is reported with its genus. A typed equation is identified with
+  its label when its curve lies in a shard already loaded (the first shard, conductor below 10,000, is always loaded).
+* Next to Plot, **ℜ y / ℑ y** chooses the third coordinate: `(Re x, Im x, Re y)`, a neighbourhood of the real
+  points, or the imaginary slice `(Re x, Im x, Im y)`, in which the real points are not drawn. The mirror half is
+  the complex conjugate, so in the imaginary slice it is reflected in both `Im x` and `Im y`. A link to the
+  imaginary slice reads `#im:20.a3`.
 * Controls live in a drawer that slides in from the left, below the top bar, with two tabs on its edge.
   **Surface**: grid size, clipping radius and inner cutoff (done in the shader), opacity, the real points and their
   thickness, the mirror half (on by default, so the whole torus is shown), axes, the clipping sphere, PNG export
   and a shareable link. **Coloring**: a picture of the z-plane colored the same way as the surface, with the period
   parallelogram outlined and the drawn half dashed, the subdivision count n (dark lines where s or t is a multiple
   of 1/n), the line softness and the colormap.
-* The examples menu lists elliptic curves only. `python3 web/build.py --dev` also adds three inputs that are not
-  elliptic curves (genus 2, a nodal cubic, a cubic not in Weierstrass form), which exercise the error messages.
+* The clipping radius has no upper bound (logarithmic slider plus a number field) and is chosen per curve:
+  1.5 times the distance from the origin to the nearest real point, at least 3, so that E(ℝ) is always in view.
+  For `11.a1` the real points start at x ≈ 103, so its default radius is 160.
+* The examples menu lists elliptic curves only; `index.html?dev` adds three inputs that are not elliptic curves
+  (genus 2, a nodal cubic, a cubic not in Weierstrass form), which exercise the error messages.
 
-Development layout, assembled by `python3 web/build.py` (add `--dev` for the extra examples):
+Layout:
 
 | path | |
 |---|---|
-| `web/src/ec3d-math.js` | parsing, invariants, genus, period lattice by the AGM (a port of Sage's `_compute_periods_real` and `normalise_periods`), `℘` by the q-series, the grid, real components |
-| `web/src/app.js`, `app.css`, `body.html`, `index.template.html` | viewer and UI |
-| `web/src/curves-data.js`, `colormaps.js` | the label table and 64-sample matplotlib colormaps |
-| `web/vendor/` | three.js r128, OrbitControls and KaTeX 0.16.11 (with the fonts it needs), vendored so the page works offline; the single-file build embeds the fonts |
-| `web/index.html` | development page loading the files above separately; `python3 -m http.server -d web` |
-| `web/dist/index.html`, `dist/artifact.html` | the single-file build, and the same without the document wrapper |
-| `web/test/test-math.mjs` | `node web/test/test-math.mjs`: 8,238 checks of the JavaScript against Sage/PARI values in `vectors.json` (made by `make_vectors.sage`) |
+| `web/index.html` | the page |
+| `web/js/app.js` | viewer and UI |
+| `web/js/ec3d-math.js` | parsing, invariants, genus, period lattice by the AGM (a port of Sage's `_compute_periods_real` and `normalise_periods`), `℘` by the q-series, the grid, real components |
+| `web/js/cremona.js` | the shard loader and label lookup |
+| `web/js/colormaps.js` | 64-sample matplotlib colormaps |
+| `web/js/vendor/` | three.js r128, OrbitControls, KaTeX 0.16.11 (licenses alongside) |
+| `web/css/` | the stylesheet, and KaTeX's with the fonts it needs |
+| `web/data/cremona/` | the 50 shards and `index.json`; `web/data/make_cremona.py` rebuilds them |
+| `web/test/test-math.mjs` | `node web/test/test-math.mjs`: 8,000-odd checks of the JavaScript against Sage/PARI values in `vectors.json` (made by `make_vectors.sage`), plus the shards |
 
-Rebuild after editing anything in `web/src`, and rerun the test after touching `ec3d-math.js`.
+Deployment: `.github/workflows/pages.yml` publishes `web/` to GitHub Pages on every push; in the repository
+settings, under Pages, set the source to "GitHub Actions" once. The whole site is about 115 MB, well inside the
+1 GB Pages limit, and no file is near the 100 MB per-file limit, which is why the tables are sharded rather than
+one `cremona.json`. Opening `index.html` from the file system works for equations and a-invariants, but browsers
+block the data fetches from `file://`, so labels need the page served over http.

@@ -684,50 +684,14 @@ function analyzeEquation(text) {
   return res;
 }
 
-// ---------------------------------------------------------------- labels
-let labelMaps = null;
-function buildLabelMaps(table) {
-  const cre = new Map(), lm = new Map();
-  for (const line of table.split('\n')) {
-    const sp = line.indexOf(' '); const N = line.slice(0, sp);
-    for (const cls of line.slice(sp + 1).split('|')) {
-      const [letters, nums, curves] = cls.split(':');
-      const [cl, ll] = letters.split('=');
-      const lnums = nums.split(',');
-      curves.split(';').forEach((enc, i) => {
-        const code = enc.charCodeAt(0) - 97, rest = enc.slice(1).split(',');
-        const a1 = code % 2, a2 = Math.floor(code / 2) % 3 - 1, a3 = Math.floor(code / 6);
-        const ainvs = [a1, a2, a3, Number(rest[0]), Number(rest[1])];
-        const clab = `${N}${cl}${i + 1}`, llab = `${N}.${ll}${lnums[i]}`;
-        const rec = { ainvs, cremona: clab, lmfdb: llab, conductor: Number(N) };
-        cre.set(clab, rec); lm.set(llab, rec);
-      });
-    }
-  }
-  return { cremona: cre, lmfdb: lm };
-}
-function lookupLabel(label, table) {
-  if (!labelMaps) labelMaps = buildLabelMaps(table);
-  const s = label.trim().toLowerCase();
-  return labelMaps.cremona.get(s) || labelMaps.lmfdb.get(s) || null;
-}
-function findByAinvs(ainvs, table) {
-  if (!labelMaps) labelMaps = buildLabelMaps(table);
-  const key = ainvs.join(',');
-  for (const rec of labelMaps.cremona.values()) if (rec.ainvs.join(',') === key) return rec;
-  return null;
-}
-const LABEL_RE = /^(\d+)(\.?)([a-z]+)(\d+)$/i;
-
 // ---------------------------------------------------------------- input dispatch
-function parseInput(text, table) {
+const LABEL_RE = /^(\d+)(\.?)([a-z]+)(\d+)$/i;
+// What did the user type?  A label comes back unresolved, {type: 'label', label, N, lmfdb}; the app looks it up in
+// Cremona's tables (js/cremona.js).  A-invariants and equations are parsed here, exactly.
+function parseInput(text) {
   const s = text.trim();
   const lab = s.match(LABEL_RE);
-  if (lab && !/[xy=]/i.test(s)) {
-    const rec = table ? lookupLabel(s, table) : null;
-    if (!rec) return { type: 'label', label: s, error: `label "${s}" not in the built-in table (conductor < 10000). Paste the equation or the a-invariants [a1,a2,a3,a4,a6] instead.` };
-    return { type: 'label', label: s, rec, ainvs: rec.ainvs.map(v => Q.of(v)) };
-  }
+  if (lab) return { type: 'label', label: s.toLowerCase(), N: Number(lab[1]), lmfdb: lab[2] === '.' };
   const av = s.match(/^\[?\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\]?$/);
   if (av) return { type: 'ainvs', ainvs: av.slice(1, 6).map(v => Q.of(v)) };
   return { type: 'equation', analysis: analyzeEquation(s) };
@@ -810,6 +774,6 @@ function realComponents(grid, radius) {
 
 return { Q, parsePolynomial, analyzeEquation, parseInput, invariantsQ, invariantsNum, formatWeierstrass, formatWeierstrassTeX, bformat, btex, pformat, ptex, qtex,
          periodLattice, normalisePeriods, reduceTau, makeWp, cubicRootsExact, refineRootExact, toNormalisedCoords, modelFromAinvs, buildGrid, realComponents,
-         lookupLabel, findByAinvs, buildLabelMaps, squarefreeParts, polyRootsNum, cubicRoots, agm,
+         squarefreeParts, polyRootsNum, cubicRoots, agm,
          _poly: { padd, psub, pmul, pdivmod, pgcd, pderiv, ptrim, pdeg } };
 });
