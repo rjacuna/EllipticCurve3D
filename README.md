@@ -93,9 +93,12 @@ of real components, all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in th
   `E(ℚ) ≅ ℤ^r ⊕ ℤ/n₁ℤ ⊕ …`, the rank and torsion structure from Cremona's `allgens` (the generators are in
   that file too but are not shipped). A typed equation that is not in the tables says so instead.
 * **Equations** are parsed with exact rational arithmetic. Weierstrass equations are used as given; a scaled one
-  such as `2y² = x³ − x` is rescaled to a monic model and the surface drawn in the original coordinates; a
-  quartic `y² = f₄(x)` with a real root, or a cubic with an `x²y` term, is brought to Weierstrass form and drawn
-  through the corresponding model; anything else is reported with its genus. A typed equation is identified with
+  such as `2y² = x³ − x` is rescaled to a monic model and the surface drawn in the original coordinates. A
+  quadratic in `y` whose completed square is a cubic is drawn through that cubic model. One whose completed
+  square is a quartic `y′² = b(x)` with a real root `r` is turned into a cubic by `x = r + 1/t`; `r` is a real
+  algebraic number, so this is an elliptic curve over the real number field `ℚ(r)`, and the surface is mapped
+  back into the typed coordinates by the inverse substitution. Anything else is reported with its genus. The
+  remark about the model used is shown in the lower right corner of the canvas. A typed equation is identified with
   its label when its curve lies in a shard already loaded (the first shard, conductor below 10,000, is always loaded).
 * **∞**, next to ℜ y / ℑ y, is Donu Arapura's animation from the old Sage notebook: the third coordinate becomes
   `Re y cos θ + Im y sin θ` with θ turning at a chosen speed, so the real view (θ = 0) and the imaginary slice
@@ -117,6 +120,19 @@ of real components, all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in th
   For `11.a1` the real points start at x ≈ 103, so its default radius is 160.
 * The examples menu lists elliptic curves only; `index.html?dev` adds three inputs that are not elliptic curves
   (genus 2, a nodal cubic, a cubic not in Weierstrass form), which exercise the error messages.
+
+### Planned
+
+* **Positive-definite quartics**, such as `y² = x⁴ + 1`: no real root, but real points `(x, ±√b(x))` everywhere,
+  and any real point can play the role the root plays. The classical transformation for a quartic with a point
+  (Cassels; Connell, *Elliptic Curve Handbook*, §1.4): after translating `x` so that the point is `(0, q)`,
+  `y² = ax⁴ + bx³ + cx² + dx + q²` maps birationally onto `Y² = X³ + cX² + (bd − 4aq²)X + (ad² + b²q² − 4acq²)`,
+  with real coefficients when `q` is real, so everything downstream applies unchanged. This is a second model
+  constructor beside the root-based one, with the remark "plotted through the real point (0, q)".
+* **Negative-definite quartics**, such as `y² = −x⁴ − 1`: no real points at all. The complex points still form
+  a torus, but every Weierstrass model reached from it has complex coefficients, and the period lattice, the
+  real rows, the conjugate mirror and the default radius all assume real ones. A complex-coefficient path
+  through all of that is a separate project.
 
 Layout:
 
