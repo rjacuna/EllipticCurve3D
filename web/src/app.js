@@ -4,8 +4,8 @@
 const $ = id => document.getElementById(id);
 const isMobile = matchMedia('(max-width: 640px)').matches || navigator.maxTouchPoints > 1;
 
-const state = { grid: isMobile ? 250 : 400, radius: 3, cutoff: 0, opacity: 0.5, lines: 8, soft: 0.12, colormap: 'Greens_r',
-                real: true, mirror: false, axes: true, sphere: false };
+const state = { grid: isMobile ? 250 : 400, radius: 3, cutoff: 0, opacity: 0.95, lines: 3, soft: 0.33, colormap: 'Greens_r',
+                real: true, thick: 0.004, mirror: true, axes: true, sphere: false };
 let model = null, lattice = null, gridData = null, curveInfo = null, lastText = '';
 
 // ------------------------------------------------------------------ scene
@@ -72,10 +72,11 @@ const realMaterial = new THREE.MeshPhongMaterial({ color: 0xc8281e, shininess: 4
 // ------------------------------------------------------------------ scene objects
 const group = new THREE.Group(); scene.add(group);
 let surfaceMesh = null, mirrorMesh = null, realGroup = null, axesGroup = null, sphereMesh = null;
+let builtBig = 2000;                                          // |P| beyond which grid cells were dropped when the geometry was built
 
 function buildSurfaceGeometry(g) {
   const n = g.n, idx = [];
-  const big = 2000;                                                         // drop cells at the pole itself (|P| enormous)
+  const big = builtBig = Math.max(2000, 50 * state.radius);                 // drop cells at the pole itself (|P| enormous)
   const ok = i => g.ok[i] && Math.abs(g.pos[3 * i]) < big && Math.abs(g.pos[3 * i + 1]) < big && Math.abs(g.pos[3 * i + 2]) < big;
   for (let i = 0; i < n - 1; i++) for (let j = 0; j < n - 1; j++) {
     const a = i * n + j, b = (i + 1) * n + j, c = (i + 1) * n + j + 1, d = i * n + j + 1;
@@ -96,7 +97,7 @@ function buildRealCurves(comps) {
     if (closed) pts.pop();
     if (pts.length < 2) continue;
     const curve = new THREE.CatmullRomCurve3(pts, closed, 'centripetal');
-    const tube = new THREE.TubeGeometry(curve, Math.min(800, 2 * pts.length), 0.011 * state.radius, 8, closed);
+    const tube = new THREE.TubeGeometry(curve, Math.min(800, 2 * pts.length), state.thick * state.radius, 8, closed);
     grp.add(new THREE.Mesh(tube, realMaterial));
   }
   return grp;
@@ -131,18 +132,72 @@ function rebuildDecorations() {
   }
   requestRender();
 }
-function rebuildSurface() {
-  if (!model) return;
+function computeGrid() {                                       // wp on the grid; returns the time taken
   const t0 = performance.now();
   gridData = EC3D.buildGrid(model, state.grid, lattice);
+  return performance.now() - t0;
+}
+function rebuildSurface() {                                    // the mesh from the current grid
+  if (!gridData) return { mesh: 0, faces: 0 };
   const t1 = performance.now();
   const geom = buildSurfaceGeometry(gridData);
   if (surfaceMesh) { group.remove(surfaceMesh); surfaceMesh.geometry.dispose(); group.remove(mirrorMesh); }
   surfaceMesh = new THREE.Mesh(geom, surfaceMaterial); group.add(surfaceMesh);
   mirrorMesh = new THREE.Mesh(geom, surfaceMaterial); mirrorMesh.scale.set(1, -1, 1); mirrorMesh.visible = state.mirror; group.add(mirrorMesh);
   rebuildDecorations();
-  const t2 = performance.now();
-  return { wp: t1 - t0, mesh: t2 - t1, faces: geom.index.count / 3 };
+  return { mesh: performance.now() - t1, faces: geom.index.count / 3 };
+}
+// The default clipping radius: large enough that the real points are inside the ball (11.a1's start at x = 103),
+// i.e. 1.5 times the distance from the origin to the nearest real point, at least 3, rounded up to 2 digits.
+function autoRadius(g) {
+  const { n, xs, ys, ok } = g;
+  let r = Infinity;
+  for (const j of [0, n - 1]) for (let i = 0; i < n; i++) {
+    const idx = i * n + j;
+    if (!ok[idx] || Math.abs(xs[2 * idx + 1]) > 1e-6 || Math.abs(ys[2 * idx + 1]) > 1e-6) continue;
+    r = Math.min(r, Math.hypot(xs[2 * idx], ys[2 * idx]));
+  }
+  const R = Math.max(3, isFinite(r) ? 1.5 * r : 0), p = Math.pow(10, Math.floor(Math.log10(R)) - 1);
+  return Math.ceil(R / p) * p;
+}
+
+// ------------------------------------------------------------------ the picture of the lattice colouring
+const latticeCanvas = $('lattice-plot'), lctx = latticeCanvas.getContext('2d');
+let latticePlotQueued = false;
+function scheduleLatticePlot() { if (!latticePlotQueued) { latticePlotQueued = true; requestAnimationFrame(() => { latticePlotQueued = false; drawLatticePlot(); }); } }
+function drawLatticePlot() {
+  const W = latticeCanvas.width, H = latticeCanvas.height;
+  lctx.clearRect(0, 0, W, H);
+  if (!lattice) return;
+  const w1 = lattice.w1, w2 = lattice.w2;                      // ω₁ > 0 real, ω₂ = [re, im]
+  const xs = [0, w1, w2[0], w1 + w2[0]], x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = w2[1];
+  const mx = 0.45 * (x1 - x0), my = 0.45 * y1;                  // show some of the neighbouring translates too
+  const scale = Math.min(W / (x1 - x0 + 2 * mx), H / (y1 + 2 * my)), cx = (x0 + x1) / 2, cy = y1 / 2;
+  const toPx = (x, y) => [W / 2 + (x - cx) * scale, H / 2 - (y - cy) * scale];
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light';
+  const bg = dark ? 24 : 255, cm = COLORMAPS[state.colormap] || COLORMAPS.Greens_r, n = state.lines, soft = state.soft;
+  const img = lctx.createImageData(W, H), d = img.data;
+  for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+    const x = cx + (px + 0.5 - W / 2) / scale, y = cy - (py + 0.5 - H / 2) / scale;
+    const t = y / w2[1], s = (x - t * w2[0]) / w1;               // z = s ω₁ + t ω₂
+    const c = Math.pow(Math.abs(Math.sin(Math.PI * s * n) * Math.sin(Math.PI * t * n)), soft);
+    const k = Math.min(63, Math.max(0, Math.round(c * 63))), o = 4 * (py * W + px);
+    const f = (s >= 0 && s <= 1 && t >= 0 && t <= 1) ? 1 : 0.45;                 // dim outside the period parallelogram
+    d[o] = 255 * cm[k][0] * f + bg * (1 - f); d[o + 1] = 255 * cm[k][1] * f + bg * (1 - f); d[o + 2] = 255 * cm[k][2] * f + bg * (1 - f); d[o + 3] = 255;
+  }
+  lctx.putImageData(img, 0, 0);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent-2').trim() || '#b3261e';
+  const text = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#222';
+  const corners = [[0, 0], [w1, 0], [w1 + w2[0], w2[1]], [w2[0], w2[1]]].map(p => toPx(p[0], p[1]));
+  lctx.lineWidth = 4; lctx.strokeStyle = accent; lctx.lineJoin = 'round';
+  lctx.beginPath(); corners.forEach((p, i) => (i ? lctx.lineTo : lctx.moveTo).call(lctx, p[0], p[1])); lctx.closePath(); lctx.stroke();
+  lctx.setLineDash([8, 8]); lctx.lineWidth = 2.5;                 // the half 0 <= t <= 1/2 actually drawn
+  const half = [[0, 0], [w1, 0], [w1 + w2[0] / 2, w2[1] / 2], [w2[0] / 2, w2[1] / 2]].map(p => toPx(p[0], p[1]));
+  lctx.beginPath(); half.forEach((p, i) => (i ? lctx.lineTo : lctx.moveTo).call(lctx, p[0], p[1])); lctx.closePath(); lctx.stroke();
+  lctx.setLineDash([]);
+  lctx.fillStyle = text; lctx.font = 'bold 22px system-ui, sans-serif'; lctx.textBaseline = 'middle';
+  const label = (txt, x, y, dx, dy) => { const p = toPx(x, y); lctx.beginPath(); lctx.arc(p[0], p[1], 5, 0, 2 * Math.PI); lctx.fill(); lctx.fillText(txt, p[0] + dx, p[1] + dy); };
+  label('0', 0, 0, 10, 16); label('ω₁', w1, 0, 10, 16); label('ω₂', w2[0], w2[1], -34, -14); label('ω₁+ω₂', w1 + w2[0], w2[1], 10, -14);
 }
 function clearSurface() {
   if (surfaceMesh) { group.remove(surfaceMesh); group.remove(mirrorMesh); surfaceMesh = mirrorMesh = null; }
@@ -190,7 +245,10 @@ async function plot(text) {
       desc.push(...an.notes);
     }
     lattice = EC3D.periodLattice(model.ainvs, model.inv.disc instanceof EC3D.Q ? model.inv.disc.sign() : undefined, model.ainvsQ || undefined);
+    const tWp = computeGrid();
+    setRadius(autoRadius(gridData));                          // per curve: the real points must be inside the ball
     const timing = rebuildSurface();
+    drawLatticePlot();
     resetView();
     const inv = model.inv;
     const discStr = inv.disc instanceof EC3D.Q ? inv.disc.toString() : fmt(inv.disc);
@@ -198,7 +256,8 @@ async function plot(text) {
     desc.push(`Δ = ${discStr}, j = ${jStr}`);
     desc.push(`ω₁ = ${fmt(lattice.w1)}, ω₂ = ${cfmt(lattice.w2)}, τ = ${cfmt(lattice.normalised.tau)}`);
     desc.push(lattice.discSign > 0 ? 'Δ > 0: two real components (rows t = 0 and t = ½)' : 'Δ < 0: one real component (row t = 0)');
-    desc.push(`<span class="ok">${timing.faces.toLocaleString()} triangles in ${(timing.wp + timing.mesh).toFixed(0)} ms</span>`);
+    desc.push(`clipped to |(x, y)| < ${fmt(state.radius, 3)}`);
+    desc.push(`<span class="ok">${timing.faces.toLocaleString()} triangles in ${(tWp + timing.mesh).toFixed(0)} ms</span>`);
     setInfo(desc.join(' · '));
   } catch (e) {
     clearSurface(); setInfo(`<span class="err">${e.message}</span>`, '');
@@ -228,19 +287,33 @@ function setOptionsOpen(open) { drawer.classList.toggle('open', open); optionsTa
 optionsTab.addEventListener('click', () => setOptionsOpen(!drawer.classList.contains('open')));
 for (const name of Object.keys(COLORMAPS)) { const o = document.createElement('option'); o.value = o.textContent = name; $('colormap').appendChild(o); }
 $('colormap').value = state.colormap;
-$('colormap').addEventListener('change', e => { state.colormap = e.target.value; setColormap(state.colormap); });
+$('colormap').addEventListener('change', e => { state.colormap = e.target.value; setColormap(state.colormap); scheduleLatticePlot(); });
 
 function bindRange(id, key, show, onChange) {
   const el = $(id); el.value = state[key]; $('v-' + id).textContent = show(state[key]);
   el.addEventListener('input', () => { state[key] = Number(el.value); $('v-' + id).textContent = show(state[key]); onChange('input'); });
   el.addEventListener('change', () => { onChange('change'); });
 }
-bindRange('grid', 'grid', v => v, kind => { if (kind === 'change' && model) { $('busy').hidden = false; setTimeout(() => { rebuildSurface(); $('busy').hidden = true; requestRender(); }, 20); } });
-bindRange('radius', 'radius', v => v.toFixed(1), kind => { uniforms.uRadius.value = state.radius; $('cutoff').max = state.radius; if (kind === 'change') rebuildDecorations(); requestRender(); });
+bindRange('grid', 'grid', v => v, kind => { if (kind === 'change' && model) { $('busy').hidden = false; setTimeout(() => { computeGrid(); rebuildSurface(); $('busy').hidden = true; requestRender(); }, 20); } });
 bindRange('cutoff', 'cutoff', v => v.toFixed(2), () => { uniforms.uCutoff.value = state.cutoff; requestRender(); });
 bindRange('opacity', 'opacity', v => v.toFixed(2), () => { surfaceMaterial.opacity = state.opacity; surfaceMaterial.depthWrite = state.opacity >= 1; requestRender(); });
-bindRange('lines', 'lines', v => v, () => { uniforms.uLines.value = state.lines; requestRender(); });
-bindRange('soft', 'soft', v => v.toFixed(2), () => { uniforms.uSoft.value = state.soft; requestRender(); });
+bindRange('thick', 'thick', v => v.toFixed(3), kind => { if (kind === 'change') rebuildDecorations(); });
+bindRange('lines', 'lines', v => v, () => { uniforms.uLines.value = state.lines; scheduleLatticePlot(); requestRender(); });
+bindRange('soft', 'soft', v => v.toFixed(2), () => { uniforms.uSoft.value = state.soft; scheduleLatticePlot(); requestRender(); });
+// the clipping radius has no upper bound: a logarithmic slider plus a free number field
+const radiusSlider = $('radius'), radiusNum = $('radius-num');
+function setRadius(R, from) {
+  R = Math.max(0.1, +R || state.radius); state.radius = R;
+  if (from !== 'slider') radiusSlider.value = Math.max(+radiusSlider.min, Math.min(+radiusSlider.max, Math.log10(R))).toFixed(2);
+  if (from !== 'num') radiusNum.value = R >= 100 ? Math.round(R) : Number(R.toPrecision(3));
+  uniforms.uRadius.value = R; $('cutoff').max = R; if (state.cutoff > R) { state.cutoff = 0; $('cutoff').value = 0; uniforms.uCutoff.value = 0; $('v-cutoff').textContent = '0.00'; }
+  requestRender();
+}
+function radiusChanged() { if (!gridData) return; if (50 * state.radius > builtBig) rebuildSurface(); else rebuildDecorations(); }
+radiusSlider.addEventListener('input', () => setRadius(Math.pow(10, +radiusSlider.value), 'slider'));
+radiusSlider.addEventListener('change', radiusChanged);
+radiusNum.addEventListener('change', () => { setRadius(radiusNum.value, 'num'); radiusChanged(); });
+setRadius(state.radius);
 function bindCheck(id, key, onChange) { const el = $(id); el.checked = state[key]; el.addEventListener('change', () => { state[key] = el.checked; onChange(); requestRender(); }); }
 bindCheck('real', 'real', () => { if (realGroup) realGroup.visible = state.real; });
 bindCheck('mirror', 'mirror', () => { if (mirrorMesh) mirrorMesh.visible = state.mirror; });

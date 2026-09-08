@@ -82,9 +82,14 @@ three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω�
   quartic `y² = f₄(x)` with a real root, or a cubic with an `x²y` term, is brought to Weierstrass form and drawn
   through the corresponding model; anything else is reported with its genus.
 * Controls live in a drawer that slides in from the left when you click the **Options** tab: grid size, clipping
-  radius and inner cutoff (done in the shader), opacity, lines per period and line softness, colormap, real
-  points, the mirror half, axes, the clipping sphere, PNG export, and a shareable link (`#20.a3`, or `#`
-  followed by the equation).
+  radius and inner cutoff (done in the shader), opacity, the real points and their thickness, the mirror half
+  (on by default, so the whole torus is shown), axes, the clipping sphere, PNG export, a shareable link
+  (`#20.a3`, or `#` followed by the equation), and at the bottom the lattice colouring: a picture of the z-plane
+  coloured the same way, with the period parallelogram outlined and the drawn half dashed, the subdivision
+  count n (dark lines where s or t is a multiple of 1/n), the line softness and the colormap.
+* The clipping radius has no upper bound (logarithmic slider plus a number field) and is chosen per curve:
+  1.5 times the distance from the origin to the nearest real point, at least 3, so that E(ℝ) is always in view.
+  For `11.a1` the real points start at x ≈ 103, so its default radius is 160.
 * The examples menu lists elliptic curves only. `python3 web/build.py --dev` also adds three inputs that are not
   elliptic curves (genus 2, a nodal cubic, a cubic not in Weierstrass form), which exercise the error messages.
 
