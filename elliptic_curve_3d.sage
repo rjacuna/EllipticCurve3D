@@ -4,8 +4,8 @@ Elliptic curves as surfaces in `\RR^3`
 The complex points of an elliptic curve `E` defined over `\RR` form a torus
 `E(\CC) \subset \CC^2 = \RR^4`.  This module draws its projection
 `(\operatorname{Re} x, \operatorname{Im} x, \operatorname{Re} y)` to `\RR^3`,
-coloured by the period lattice, so that the real points `E(\RR)` are the slice
-`\operatorname{Im} x = 0`, and the coloured lines are the images of the cycles
+colored by the period lattice, so that the real points `E(\RR)` are the slice
+`\operatorname{Im} x = 0`, and the colored lines are the images of the cycles
 `s\,\omega_1 + t\,\omega_2`, `s` or `t` constant.
 
 The uniformisation is the inverse of the Abel--Jacobi map of the *given* model
@@ -508,12 +508,12 @@ class EllipticCurve3D(SageObject):
     def surface(self, colormap=None, spacing=1/8, cutoff=0, radius=1, opacity=1, plot_points=300):
         r"""
         Return the surface `(\operatorname{Re} x, \operatorname{Im} x, \operatorname{Re} y)`
-        coloured by the period lattice.
+        colored by the period lattice.
 
         INPUT:
 
         - ``colormap`` -- (default: ``colormaps.Greens_r``) a matplotlib colormap
-        - ``spacing`` -- (default: `1/8`) period of the lattice colouring in the
+        - ``spacing`` -- (default: `1/8`) period of the lattice coloring in the
           lattice coordinates `(s, t)`; the dark lines are the cycles
           `s \in` ``spacing`` `\ZZ` and `t \in` ``spacing`` `\ZZ`
         - ``cutoff``, ``radius`` -- (default: 0 and 1) keep the part of the

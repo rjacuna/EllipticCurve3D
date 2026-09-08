@@ -1,8 +1,8 @@
 # EllipticCurve3D
 
 The complex points of an elliptic curve `E` over ℝ form a torus `E(ℂ) ⊂ ℂ² = ℝ⁴`. This project draws its
-projection `(Re x, Im x, Re y)` to ℝ³, coloured by the period lattice, so that the real points `E(ℝ)` are the
-slice `Im x = 0` and the coloured lines are the cycles `s·ω₁ + t·ω₂` with `s` or `t` constant. It exists in
+projection `(Re x, Im x, Re y)` to ℝ³, colored by the period lattice, so that the real points `E(ℝ)` are the
+slice `Im x = 0` and the colored lines are the cycles `s·ω₁ + t·ω₂` with `s` or `t` constant. It exists in
 two forms that share the same mathematics: a SageMath module with a notebook, and a single-page web app.
 
 ## Layout
@@ -62,8 +62,8 @@ S.point(z), S.grid(n), S.real_components(radius), S.basis(), S.normalised_basis(
 ```
 
 `point(z)` returns the point of the given model at `z`; `grid(n)` the parametrisation on an `n × n` grid;
-`surface(...)` the coloured, clipped surface with `cutoff ≤ |(X, Y, Z)| < radius`, its opacity restored after
-the clipping (Sage's `add_condition` drops it for per-face colours). Curves over a number field are taken with
+`surface(...)` the colored, clipped surface with `cutoff ≤ |(X, Y, Z)| < radius`, its opacity restored after
+the clipping (Sage's `add_condition` drops it for per-face colors). Curves over a number field are taken with
 a real embedding, the first one by default or the `embedding` argument.
 
 Checks: `sage -python run_doctests.py` (81 doctests) and `sage verify.sage`.
@@ -81,15 +81,16 @@ three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω�
   such as `2y² = x³ − x` is rescaled to a monic model and the surface drawn in the original coordinates; a
   quartic `y² = f₄(x)` with a real root, or a cubic with an `x²y` term, is brought to Weierstrass form and drawn
   through the corresponding model; anything else is reported with its genus.
-* Controls live in a drawer that slides in from the left when you click the **Options** tab: grid size, clipping
-  radius and inner cutoff (done in the shader), opacity, the real points and their thickness, the mirror half
-  (on by default, so the whole torus is shown), axes, the clipping sphere, PNG export, a shareable link
-  (`#20.a3`, or `#` followed by the equation), and at the bottom the lattice colouring: a picture of the z-plane
-  coloured the same way, with the period parallelogram outlined and the drawn half dashed, the subdivision
-  count n (dark lines where s or t is a multiple of 1/n), the line softness and the colormap.
-* The clipping radius has no upper bound (logarithmic slider plus a number field) and is chosen per curve:
-  1.5 times the distance from the origin to the nearest real point, at least 3, so that E(ℝ) is always in view.
-  For `11.a1` the real points start at x ≈ 103, so its default radius is 160.
+* Next to Plot, **Re y / Im y** chooses the third coordinate: `(Re x, Im x, Re y)`, a neighbourhood of the real
+  points, or the imaginary slice `(Re x, Im x, Im y)`, in which the real points are not drawn (there they lie in the
+  plane `Im y = 0`, not on a curve of the picture). The mirror half is the complex conjugate, so in the imaginary
+  slice it is reflected in both `Im x` and `Im y`. A link to the imaginary slice reads `#im:20.a3`.
+* Controls live in a drawer that slides in from the left, below the top bar, with two tabs on its edge.
+  **Surface**: grid size, clipping radius and inner cutoff (done in the shader), opacity, the real points and their
+  thickness, the mirror half (on by default, so the whole torus is shown), axes, the clipping sphere, PNG export
+  and a shareable link. **Coloring**: a picture of the z-plane colored the same way as the surface, with the period
+  parallelogram outlined and the drawn half dashed, the subdivision count n (dark lines where s or t is a multiple
+  of 1/n), the line softness and the colormap.
 * The examples menu lists elliptic curves only. `python3 web/build.py --dev` also adds three inputs that are not
   elliptic curves (genus 2, a nodal cubic, a cubic not in Weierstrass form), which exercise the error messages.
 

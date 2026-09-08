@@ -5,7 +5,7 @@ const $ = id => document.getElementById(id);
 const isMobile = matchMedia('(max-width: 640px)').matches || navigator.maxTouchPoints > 1;
 
 const state = { grid: isMobile ? 250 : 400, radius: 3, cutoff: 0, opacity: 0.95, lines: 3, soft: 0.33, colormap: 'Greens_r',
-                real: true, thick: 0.004, mirror: true, axes: true, sphere: false };
+                real: true, thick: 0.004, mirror: true, axes: true, sphere: false, slice: 're' };
 let model = null, lattice = null, gridData = null, curveInfo = null, lastText = '';
 
 // ------------------------------------------------------------------ scene
@@ -48,7 +48,7 @@ function setColormap(name) {
 }
 setColormap(state.colormap);
 
-// ------------------------------------------------------------------ surface material (lattice colouring + spherical clipping in the shader)
+// ------------------------------------------------------------------ surface material (lattice coloring + spherical clipping in the shader)
 const uniforms = { uRadius: { value: state.radius }, uCutoff: { value: state.cutoff }, uLines: { value: state.lines }, uSoft: { value: state.soft }, uColormap: { value: cmapTex } };
 function makeSurfaceMaterial() {
   const m = new THREE.MeshPhongMaterial({ side: THREE.DoubleSide, transparent: true, opacity: state.opacity, depthWrite: state.opacity >= 1,
@@ -75,15 +75,17 @@ let surfaceMesh = null, mirrorMesh = null, realGroup = null, axesGroup = null, s
 let builtBig = 2000;                                          // |P| beyond which grid cells were dropped when the geometry was built
 
 function buildSurfaceGeometry(g) {
-  const n = g.n, idx = [];
+  const n = g.n, N = n * n, idx = [], im = state.slice === 'im';
+  const pos = new Float32Array(3 * N);                                      // (Re x, Im x, Re y), or (Re x, Im x, Im y) for the imaginary slice
+  for (let i = 0; i < N; i++) { pos[3 * i] = g.xs[2 * i]; pos[3 * i + 1] = g.xs[2 * i + 1]; pos[3 * i + 2] = im ? g.ys[2 * i + 1] : g.ys[2 * i]; }
   const big = builtBig = Math.max(2000, 50 * state.radius);                 // drop cells at the pole itself (|P| enormous)
-  const ok = i => g.ok[i] && Math.abs(g.pos[3 * i]) < big && Math.abs(g.pos[3 * i + 1]) < big && Math.abs(g.pos[3 * i + 2]) < big;
+  const ok = i => g.ok[i] && Math.abs(pos[3 * i]) < big && Math.abs(pos[3 * i + 1]) < big && Math.abs(pos[3 * i + 2]) < big;
   for (let i = 0; i < n - 1; i++) for (let j = 0; j < n - 1; j++) {
     const a = i * n + j, b = (i + 1) * n + j, c = (i + 1) * n + j + 1, d = i * n + j + 1;
     if (ok(a) && ok(b) && ok(c) && ok(d)) idx.push(a, b, c, a, c, d);
   }
   const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.BufferAttribute(g.pos, 3));
+  geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geom.setAttribute('st', new THREE.BufferAttribute(g.uv, 2));
   geom.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
   geom.computeVertexNormals();
@@ -120,7 +122,7 @@ function makeLabel(text, x, y, z) {
 function buildAxes(R) {
   const grp = new THREE.Group();
   grp.add(new THREE.AxesHelper(1.15 * R));
-  grp.add(makeLabel('Re x', 1.3 * R, 0, 0)); grp.add(makeLabel('Im x', 0, 1.3 * R, 0)); grp.add(makeLabel('Re y', 0, 0, 1.3 * R));
+  grp.add(makeLabel('Re x', 1.3 * R, 0, 0)); grp.add(makeLabel('Im x', 0, 1.3 * R, 0)); grp.add(makeLabel(state.slice === 'im' ? 'Im y' : 'Re y', 0, 0, 1.3 * R));
   return grp;
 }
 function rebuildDecorations() {
@@ -132,7 +134,7 @@ function rebuildDecorations() {
   sphereMesh.visible = state.sphere; group.add(sphereMesh);
   if (gridData) {
     if (realGroup) group.remove(realGroup);
-    realGroup = buildRealCurves(EC3D.realComponents(gridData, R)); realGroup.visible = state.real; group.add(realGroup);
+    realGroup = buildRealCurves(EC3D.realComponents(gridData, R)); realGroup.visible = state.real && state.slice === 're'; group.add(realGroup);
   }
   requestRender();
 }
@@ -147,7 +149,8 @@ function rebuildSurface() {                                    // the mesh from 
   const geom = buildSurfaceGeometry(gridData);
   if (surfaceMesh) { group.remove(surfaceMesh); surfaceMesh.geometry.dispose(); group.remove(mirrorMesh); }
   surfaceMesh = new THREE.Mesh(geom, surfaceMaterial); group.add(surfaceMesh);
-  mirrorMesh = new THREE.Mesh(geom, surfaceMaterial); mirrorMesh.scale.set(1, -1, 1); mirrorMesh.visible = state.mirror; group.add(mirrorMesh);
+  // the other half of the torus is the complex conjugate: (Im x, Im y) -> (-Im x, -Im y)
+  mirrorMesh = new THREE.Mesh(geom, surfaceMaterial); mirrorMesh.scale.set(1, -1, state.slice === 'im' ? -1 : 1); mirrorMesh.visible = state.mirror; group.add(mirrorMesh);
   rebuildDecorations();
   return { mesh: performance.now() - t1, faces: geom.index.count / 3 };
 }
@@ -165,7 +168,7 @@ function autoRadius(g) {
   return Math.ceil(R / p) * p;
 }
 
-// ------------------------------------------------------------------ the picture of the lattice colouring
+// ------------------------------------------------------------------ the picture of the lattice coloring
 const latticeCanvas = $('lattice-plot'), lctx = latticeCanvas.getContext('2d');
 let latticePlotQueued = false;
 function scheduleLatticePlot() { if (!latticePlotQueued) { latticePlotQueued = true; requestAnimationFrame(() => { latticePlotQueued = false; drawLatticePlot(); }); } }
@@ -213,12 +216,16 @@ function clearSurface() {
 const fmt = (v, d = 5) => (Math.abs(v) < 1e-12 ? '0' : Number(v.toPrecision(d)).toString());
 const cfmt = z => { const re = fmt(z[0]), im = fmt(Math.abs(z[1])); if (Math.abs(z[1]) < 1e-12) return re; if (Math.abs(z[0]) < 1e-12) return (z[1] < 0 ? '-' : '') + im + 'i'; return `${re} ${z[1] < 0 ? '-' : '+'} ${im}i`; };
 function setInfo(html, cls) { const el = $('info'); el.innerHTML = html; el.className = cls || ''; }
+let infoParts = null;                                          // the info line, re-rendered when the slice changes
+const sliceText = () => state.slice === 'im' ? 'imaginary slice (Re x, Im x, Im y)' : 'surface (Re x, Im x, Re y)';
+function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText(), infoParts.timing].join(' · ')); }
+function updateHash(text) { try { history.replaceState(null, '', '#' + (state.slice === 'im' ? 'im:' : '') + encodeURIComponent(text)); } catch (e) {} }
 function nextFrame() { return new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); }
 
 async function plot(text) {
   text = text.trim(); if (!text) return;
   lastText = text; $('input').value = text;
-  try { history.replaceState(null, '', '#' + encodeURIComponent(text)); } catch (e) {}
+  updateHash(text);
   $('busy').hidden = false; await nextFrame();
   try {
     const parsed = EC3D.parseInput(text, CURVE_TABLE);
@@ -261,10 +268,10 @@ async function plot(text) {
     desc.push(`ω₁ = ${fmt(lattice.w1)}, ω₂ = ${cfmt(lattice.w2)}, τ = ${cfmt(lattice.normalised.tau)}`);
     desc.push(lattice.discSign > 0 ? 'Δ > 0: two real components (rows t = 0 and t = ½)' : 'Δ < 0: one real component (row t = 0)');
     desc.push(`clipped to |(x, y)| < ${fmt(state.radius, 3)}`);
-    desc.push(`<span class="ok">${timing.faces.toLocaleString()} triangles in ${(tWp + timing.mesh).toFixed(0)} ms</span>`);
-    setInfo(desc.join(' · '));
+    infoParts = { base: desc, timing: `<span class="ok">${timing.faces.toLocaleString()} triangles in ${(tWp + timing.mesh).toFixed(0)} ms</span>` };
+    renderInfo();
   } catch (e) {
-    clearSurface(); setInfo(`<span class="err">${e.message}</span>`, '');
+    clearSurface(); infoParts = null; setInfo(`<span class="err">${e.message}</span>`, '');
   } finally { $('busy').hidden = true; requestRender(); }
 }
 
@@ -285,10 +292,31 @@ for (const [label, value, dev] of EXAMPLES) {
 $('examples').addEventListener('change', e => { if (e.target.value) plot(e.target.value); e.target.value = ''; });
 $('plot').addEventListener('click', () => plot($('input').value));
 $('input').addEventListener('keydown', e => { if (e.key === 'Enter') plot($('input').value); });
-// the options drawer slides in from the left; its tab rides on its right edge
-const drawer = $('drawer'), optionsTab = $('options-tab');
-function setOptionsOpen(open) { drawer.classList.toggle('open', open); optionsTab.setAttribute('aria-expanded', String(open)); }
-optionsTab.addEventListener('click', () => setOptionsOpen(!drawer.classList.contains('open')));
+// the third coordinate: Re y (a neighbourhood of the real points) or Im y (the imaginary slice, no real points drawn)
+const sliceButtons = [...document.querySelectorAll('#topbar .seg button')];
+function setSlice(v, silent) {
+  state.slice = v;
+  for (const b of sliceButtons) { const on = b.dataset.slice === v; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); }
+  if (silent) return;
+  if (gridData) { rebuildSurface(); renderInfo(); }
+  if (lastText) updateHash(lastText);
+  requestRender();
+}
+for (const b of sliceButtons) b.addEventListener('click', () => { if (state.slice !== b.dataset.slice) setSlice(b.dataset.slice); });
+// the options drawer slides in from the left, below the top bar; its two tabs ride on its right edge and pick the section
+const drawer = $('drawer'), tabs = [...drawer.querySelectorAll('.tab')];
+let openSection = null;
+function showSection(name) {
+  openSection = name;
+  drawer.classList.toggle('open', !!name);
+  for (const t of tabs) { const on = t.dataset.section === name; t.classList.toggle('active', on); t.setAttribute('aria-expanded', String(on)); }
+  if (name) for (const sec of drawer.querySelectorAll('#panel > section')) sec.hidden = sec.id !== 'section-' + name;
+  if (name === 'color') scheduleLatticePlot();
+}
+for (const t of tabs) t.addEventListener('click', () => showSection(openSection === t.dataset.section ? null : t.dataset.section));
+const topbar = $('topbar');                                    // the drawer sits below the top bar, whatever its height
+function measureTopbar() { document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px'); }
+new ResizeObserver(measureTopbar).observe(topbar); measureTopbar();
 for (const name of Object.keys(COLORMAPS)) { const o = document.createElement('option'); o.value = o.textContent = name; $('colormap').appendChild(o); }
 $('colormap').value = state.colormap;
 $('colormap').addEventListener('change', e => { state.colormap = e.target.value; setColormap(state.colormap); scheduleLatticePlot(); });
@@ -319,7 +347,7 @@ radiusSlider.addEventListener('change', radiusChanged);
 radiusNum.addEventListener('change', () => { setRadius(radiusNum.value, 'num'); radiusChanged(); });
 setRadius(state.radius);
 function bindCheck(id, key, onChange) { const el = $(id); el.checked = state[key]; el.addEventListener('change', () => { state[key] = el.checked; onChange(); requestRender(); }); }
-bindCheck('real', 'real', () => { if (realGroup) realGroup.visible = state.real; });
+bindCheck('real', 'real', () => { if (realGroup) realGroup.visible = state.real && state.slice === 're'; });
 bindCheck('mirror', 'mirror', () => { if (mirrorMesh) mirrorMesh.visible = state.mirror; });
 bindCheck('axes', 'axes', () => { if (axesGroup) axesGroup.visible = state.axes; });
 bindCheck('sphere', 'sphere', () => { if (sphereMesh) sphereMesh.visible = state.sphere; });
@@ -328,6 +356,7 @@ $('snapshot').addEventListener('click', () => { renderer.render(scene, camera); 
 $('share').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; setTimeout(() => $('share').textContent = 'Copy link', 1200); } catch (e) { prompt('Link:', location.href); } });
 setTimeout(() => { $('hint').hidden = true; }, 9000);
 
-const initial = decodeURIComponent((location.hash || '').slice(1)) || '20.a3';
-plot(initial);
+let initial = decodeURIComponent((location.hash || '').slice(1));
+if (initial.startsWith('im:')) { initial = initial.slice(3); setSlice('im', true); }
+plot(initial || '20.a3');
 })();

@@ -25,25 +25,34 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 syst
 #topbar button { flex: 0 0 auto; }
 #topbar select { flex: 0 0 auto; width: 9.5em; min-width: 0; max-width: calc(100vw - 16px); box-sizing: border-box; }
 #topbar button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+#topbar .seg { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--panel-border); border-radius: 8px; overflow: hidden; background: var(--input-bg); }
+#topbar .seg button { border: 0; border-radius: 0; padding: 8px 10px; background: transparent; color: var(--muted); }
+#topbar .seg button + button { border-left: 1px solid var(--panel-border); }
+#topbar .seg button.active { background: var(--accent); color: #fff; }
 #info { flex-basis: 100%; min-width: 0; font-size: 13px; color: var(--muted); min-height: 1.2em; white-space: normal; overflow-wrap: anywhere; }
 #info b { color: var(--text); font-weight: 600; }
 #info .err { color: var(--accent-2); }
 #info .ok { color: var(--accent); }
 
-/* options drawer: slides in from the left; the tab on its right edge rides along with it */
-#drawer { position: fixed; left: 0; top: 50%; z-index: 6; width: min(300px, 85vw);
-  transform: translate(-100%, -50%); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
-#drawer.open { transform: translate(0, -50%); }
-#panel { box-sizing: border-box; width: 100%; max-height: min(80vh, calc(100vh - 140px)); overflow: auto; background: var(--panel); border: 1px solid var(--panel-border); border-left: 0;
+/* options drawer: slides in from the left, below the top bar (whose height is measured into --topbar-h),
+   never taller than the space under it; the two tabs ride on its right edge */
+#drawer { position: fixed; left: 0; top: calc(var(--topbar-h, 64px) + 8px); bottom: 8px; z-index: 6; width: min(300px, 85vw);
+  display: flex; flex-direction: column; align-items: stretch; pointer-events: none;
+  transform: translateX(-100%); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
+#drawer.open { transform: none; }
+#drawer > * { pointer-events: auto; }
+#panel { box-sizing: border-box; width: 100%; max-height: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--panel-border); border-left: 0;
   border-radius: 0 12px 12px 0; padding: 10px 12px; box-shadow: var(--shadow); backdrop-filter: blur(6px); }
-/* the tab's text runs vertically, reading bottom to top; the element is rotated, so its logical right edge is the
+#panel section[hidden] { display: none; }
+#drawer .tabs { position: absolute; left: 100%; top: 4px; margin-left: -1px; display: flex; flex-direction: column; gap: 8px; }
+/* each tab's text runs vertically, reading bottom to top; the button is rotated, so its logical right edge is the
    visible left edge that touches the panel */
-#options-tab { position: absolute; left: 100%; top: 50%; margin-left: -1px; writing-mode: vertical-rl;
-  transform: translateY(-50%) rotate(180deg); transform-origin: center;
+#drawer .tab { writing-mode: vertical-rl; transform: rotate(180deg);
   padding: 14px 9px; border: 1px solid var(--panel-border); border-right: 0; border-radius: 10px 0 0 10px;
   background: var(--panel); color: var(--text); font: inherit; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 12px; cursor: pointer;
   box-shadow: var(--shadow); backdrop-filter: blur(6px); white-space: nowrap; }
-#options-tab:hover, #options-tab:focus-visible { color: var(--accent); }
+#drawer .tab:hover, #drawer .tab:focus-visible { color: var(--accent); }
+#drawer .tab.active { color: var(--accent); background: var(--input-bg); }
 #panel h3 { margin: 4px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 #panel label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; margin: 6px 0; font-size: 13px; }
 #panel label input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
@@ -62,6 +71,5 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 syst
 #busy { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 16px; z-index: 7; box-shadow: var(--shadow); }
 #busy[hidden] { display: none; }
 @media (max-width: 640px) {
-  #panel { max-height: 70vh; }
   #hint { display: none; }
 }

@@ -1,7 +1,7 @@
 # render_figures.sage -- static (tachyon) renders of the surface together with the real points of E,
 # drawn independently of ℘ in the plane Im x = 0.  Run from the project directory:  sage render_figures.sage
 #
-# Note: tachyon builds per-face textures from the colour only, so lattice-coloured surfaces render
+# Note: tachyon builds per-face textures from the color only, so lattice-colored surfaces render
 # opaque here; the three.js viewer in the notebook honours the opacity.
 import os, json
 FIG = "figures"; os.makedirs(FIG, exist_ok=True)

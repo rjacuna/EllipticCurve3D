@@ -697,7 +697,7 @@ function parseInput(text, table) {
 // ---------------------------------------------------------------- the surface grid
 // Returns typed arrays for an n x n grid over the half fundamental domain s in [-1/2, 1/2], t in [0, 1/2]:
 //   pos  (3 floats per vertex): (Re x, Im x, Re y) in the ORIGINAL coordinates,
-//   uv   (2 floats per vertex): (s, t) for the lattice colouring,
+//   uv   (2 floats per vertex): (s, t) for the lattice coloring,
 //   ok   (1 byte per vertex):   0 at the pole / non-finite points.
 function buildGrid(model, n, lattice, nterms = 10) {
   const lat = lattice || periodLattice(model.ainvs, model.inv.disc instanceof Q ? model.inv.disc.sign() : undefined, model.ainvsQ || undefined);

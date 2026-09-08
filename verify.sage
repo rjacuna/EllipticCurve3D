@@ -39,7 +39,7 @@ check("surface builds with the pole on the grid, all vertices finite", np.isfini
 check("clipping: cutoff <= |P| <= radius", r.min() > 0.5 - 1e-6 and r.max() < 3 + 1e-6, f"(|P| in [{r.min():.4f}, {r.max():.4f}])")
 surf = G.threejs_repr(G.default_render_params())[0][1]
 check("opacity survives add_condition (three.js)", surf["opacity"] == 0.5, f"(opacity {surf['opacity']})")
-check("per-face lattice colours present", len(surf.get("faceColors", [])) == len(G.face_list()))
+check("per-face lattice colors present", len(surf.get("faceColors", [])) == len(G.face_list()))
 
 print("\n" + ("ALL CHECKS PASSED" if not fails else f"{fails} CHECK(S) FAILED"))
 sys.exit(fails)
