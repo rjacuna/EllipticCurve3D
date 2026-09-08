@@ -71,7 +71,7 @@ Checks: `sage -python run_doctests.py` (81 doctests) and `sage verify.sage`.
 ## The web app
 
 `web/` is a single-page application in the usual shape, `index.html` with `js/`, `css/` and `data/`, and no build
-step: serve the folder and open it.
+step. It is live at **https://rjacuna.github.io/EllipticCurve3D/**; to run it locally, serve the folder and open it.
 
 ```bash
 python3 -m http.server -d ~/Projects/EllipticCurve3D/web 8765      # then http://localhost:8765/
@@ -124,8 +124,8 @@ Layout:
 | `web/data/cremona/` | the 50 shards and `index.json`; `web/data/make_cremona.py` rebuilds them |
 | `web/test/test-math.mjs` | `node web/test/test-math.mjs`: 8,000-odd checks of the JavaScript against Sage/PARI values in `vectors.json` (made by `make_vectors.sage`), plus the shards |
 
-Deployment: `.github/workflows/pages.yml` publishes `web/` to GitHub Pages on every push; in the repository
-settings, under Pages, set the source to "GitHub Actions" once. The whole site is about 115 MB, well inside the
+Deployment: `.github/workflows/pages.yml` publishes `web/` to GitHub Pages on every push to `master` (the Pages
+source is "GitHub Actions", and the `github-pages` environment allows deployments from `master`). The whole site is about 115 MB, well inside the
 1 GB Pages limit, and no file is near the 100 MB per-file limit, which is why the tables are sharded rather than
 one `cremona.json`. Opening `index.html` from the file system works for equations and a-invariants, but browsers
 block the data fetches from `file://`, so labels need the page served over http.
