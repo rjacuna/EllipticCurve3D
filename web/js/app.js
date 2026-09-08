@@ -258,6 +258,7 @@ const qtex = v => (v instanceof EC3D.Q) ? EC3D.qtex(v) : fmt(v);
 const ctex = z => { const re = fmt(z[0]), im = fmt(Math.abs(z[1])); if (Math.abs(z[1]) < 1e-12) return re; if (Math.abs(z[0]) < 1e-12) return (z[1] < 0 ? '-' : '') + im + '\\,i'; return `${re} ${z[1] < 0 ? '-' : '+'} ${im}\\,i`; };
 for (const el of document.querySelectorAll('.tex')) katex.render(el.textContent, el, { throwOnError: false, output: 'html' });
 function setInfo(html, cls) { const el = $('info'); el.innerHTML = html; el.className = cls || ''; }
+function setRemarks(notes) { const el = $('remarks'); el.innerHTML = notes.map(mixed).join('<br>'); el.hidden = !notes.length; }
 let infoParts = null;                                          // the info line, re-rendered when the slice changes
 const sliceText = () => mixed(state.slice === 'im' ? 'imaginary slice $(\\Re x, \\Im x, \\Im y)$'
                             : state.slice === 'anim' ? 'rotating $(\\Re x, \\Im x, \\Re y\\cos\\theta + \\Im y\\sin\\theta)$'
@@ -306,7 +307,7 @@ async function plot(text) {
   text = text.trim(); if (!text) return;
   lastText = text; $('input').value = text;
   updateHash(text);
-  $('busy').hidden = false; await nextFrame();
+  $('busy').hidden = false; setRemarks([]); await nextFrame();
   try {
     const parsed = EC3D.parseInput(text);
     let desc = [];
@@ -337,7 +338,7 @@ async function plot(text) {
         if (rec) desc.push(esc(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`));
         desc.push(mwText(rec) || mwUnknown());
       } else desc.push(esc(an.kind));
-      desc.push(...an.notes.map(mixed));
+      setRemarks(an.notes);                                   // how the curve was brought to the model drawn: over the canvas, not in the info
     }
     lattice = EC3D.periodLattice(model.ainvs, model.inv.disc instanceof EC3D.Q ? model.inv.disc.sign() : undefined, model.ainvsQ || undefined);
     computeGrid();
