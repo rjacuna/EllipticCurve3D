@@ -2,7 +2,8 @@
  * 10,000 conductors under data/cremona/ (see data/make_cremona.py) and fetched on demand.
  *
  * Browser: the global Cremona.  Node: require() it and point Cremona.fetchJSON at the files.
- *   await Cremona.lookup('11.a1')  ->  { conductor, cremona, lmfdb, ainvs }  |  null (no such curve)  |  { missing: true, N }
+ *   await Cremona.lookup('11.a1')  ->  { conductor, cremona, lmfdb, ainvs, rank, torsion }  |  null (no such curve)  |  { missing: true, N }
+ * rank is the rank of E(Q) and torsion the structure of its torsion subgroup ([2, 4] for Z/2 x Z/4).
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -36,7 +37,8 @@ C.ensure = async function (N) {
 const LABEL = /^(\d+)(\.?)([a-z]+)(\d+)$/i;
 // "11a2" (Cremona) or "11.a1" (LMFDB) -> { N, lmfdb, letter, num }
 C.parseLabel = s => { const m = LABEL.exec(String(s).trim()); return m ? { N: Number(m[1]), lmfdb: m[2] === '.', letter: m[3].toLowerCase(), num: Number(m[4]) } : null; };
-const rec = (N, cl, cnum, ll, c) => ({ conductor: N, cremona: `${N}${cl}${cnum}`, lmfdb: `${N}.${ll}${c[0]}`, ainvs: c.slice(1) });
+const rec = (N, cl, cnum, ll, c) => ({ conductor: N, cremona: `${N}${cl}${cnum}`, lmfdb: `${N}.${ll}${c[0]}`, ainvs: c.slice(1, 6),
+                                        rank: c[6] === undefined ? null : c[6], torsion: c[7] || [] });
 C.lookupIn = function (shard, lab) {
   const classes = shard[String(lab.N)];
   if (!classes) return null;
@@ -60,7 +62,7 @@ C.findByAinvs = function (ainvs) {
   for (const shard of C.shards.values())
     for (const N in shard)
       for (const [cl, ll, curves] of shard[N])
-        for (let i = 0; i < curves.length; i++) if (curves[i].slice(1).join(',') === key) return rec(Number(N), cl, i + 1, ll, curves[i]);
+        for (let i = 0; i < curves.length; i++) if (curves[i].slice(1, 6).join(',') === key) return rec(Number(N), cl, i + 1, ll, curves[i]);
   return null;
 };
 return C;

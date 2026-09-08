@@ -264,6 +264,31 @@ const sliceText = () => mixed(state.slice === 'im' ? 'imaginary slice $(\\Re x, 
                             : 'surface $(\\Re x, \\Im x, \\Re y)$');
 function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText()].join(' · ')); }
 function updateHash(text) { try { history.replaceState(null, '', '#' + (state.slice === 'im' ? 'im:' : state.slice === 'anim' ? 'anim:' : '') + encodeURIComponent(text)); } catch (e) {} }
+// A typed curve is identified up to isomorphism over Q: the tables list minimal models, so the a-invariants are
+// first made integral by (x, y) -> (u^2 x, u^3 y), a_i -> u^i a_i, and then reduced by the same scaling where possible.
+function integralModel(aQ) {
+  const w = [1, 2, 3, 4, 6];
+  let a = null;
+  for (let u = 1; u <= 100 && !a; u++) { const b = aQ.map((v, i) => v.mul(EC3D.Q.of(u).pow(w[i]))); if (b.every(v => v.isInteger())) a = b; }
+  if (!a) return null;
+  for (let u = 2; u <= 30; ) { const b = a.map((v, i) => v.div(EC3D.Q.of(u).pow(w[i]))); if (b.every(v => v.isInteger())) a = b; else u++; }
+  return a.map(v => Number(v.toString()));
+}
+function identify(aQ) {
+  const nums = aQ.map(v => Number(v.toString()));
+  let rec = nums.every(Number.isInteger) ? Cremona.findByAinvs(nums) : null;
+  if (!rec) { const m = integralModel(aQ); if (m) rec = Cremona.findByAinvs(m); }
+  return rec;
+}
+// the Mordell-Weil group from Cremona's tables: E(Q) = Z^r (+) torsion
+function mwText(rec) {
+  if (!rec || rec.rank === null || rec.rank === undefined) return null;
+  const parts = [];
+  if (rec.rank > 0) parts.push(rec.rank === 1 ? '\\mathbb{Z}' : `\\mathbb{Z}^{${rec.rank}}`);
+  for (const n of rec.torsion || []) parts.push(`\\mathbb{Z}/${n}\\mathbb{Z}`);
+  return T(`E(\\mathbb{Q}) \\cong ` + (parts.length ? parts.join(' \\oplus ') : '0'));
+}
+const mwUnknown = () => mixed('$E(\\mathbb{Q})$: not in Cremona’s tables');
 function nextFrame() {                                         // let the busy marker paint first; a hidden tab gets no frames, so fall back to a timer
   return new Promise(r => { let done = false; const go = () => { if (!done) { done = true; setTimeout(r, 0); } }; requestAnimationFrame(go); setTimeout(go, 100); });
 }
@@ -290,12 +315,13 @@ async function plot(text) {
     if (parsed.type === 'label' || parsed.type === 'ainvs') {
       let ainvs = parsed.ainvs, rec = null;
       if (parsed.type === 'label') { rec = await resolveLabel(parsed); ainvs = rec.ainvs.map(v => EC3D.Q.of(v)); }
-      else rec = Cremona.findByAinvs(ainvs.map(v => Number(v.toString())));
+      else rec = identify(ainvs);
       const m = EC3D.modelFromAinvs(ainvs);
       if (m.singular) throw new Error(`singular Weierstrass cubic ($\\Delta = 0$): $${EC3D.formatWeierstrassTeX(ainvs)}$`);
       model = m;
       desc.push(`<span class="eq">${T(EC3D.formatWeierstrassTeX(ainvs))}</span>`);
       if (rec) desc.push(esc(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`));
+      desc.push(mwText(rec) || mwUnknown());
     } else {
       const an = parsed.analysis;
       if (!an.model) {
@@ -307,8 +333,9 @@ async function plot(text) {
       model = an.model;
       desc.push(`<span class="eq">${T(EC3D.btex(an.F) + ' = 0')}</span>`);
       if (an.kind === 'weierstrass' && model.ainvsQ) {
-        const rec = Cremona.findByAinvs(model.ainvsQ.map(v => Number(v.toString())));
+        const rec = identify(model.ainvsQ);
         if (rec) desc.push(esc(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`));
+        desc.push(mwText(rec) || mwUnknown());
       } else desc.push(esc(an.kind));
       desc.push(...an.notes.map(mixed));
     }
@@ -335,7 +362,9 @@ async function plot(text) {
 const DEV = new URLSearchParams(location.search).has('dev') || (typeof window !== 'undefined' && !!window.EC3D_DEV);
 const EXAMPLES = [
   ['20.a3  (two real components)', '20.a3'], ['11a1  (one real component)', '11a1'], ['37a1  (rank 1)', '37a1'], ['389a1', '389a1'], ['5077a1', '5077a1'],
-  ['y² = x³ − x', 'y^2 = x^3 - x'], ['y² + y = x³ − x²', 'y^2 + y = x^3 - x^2'], ['2y² = x³ − x  (scaled)', '2*y^2 = x^3 - x'],
+  ['y² = x³ − x', 'y^2 = x^3 - x'], ['y² = x³ + x', 'y^2 = x^3 + x'], ['y² = x³ − x + 1', 'y^2 = x^3 - x + 1'],
+  ['y² = x³ + 4  (E(ℚ) ≅ ℤ/3)', 'y^2 = x^3 + 4'], ['y² = x³ − 7x + 10', 'y^2 = x^3 - 7x + 10'], ['y² = x³ − x/4  (Arapura; try ∞)', 'y^2 = x^3 - x/4'],
+  ['y² + y = x³ − x²', 'y^2 + y = x^3 - x^2'], ['2y² = x³ − x  (scaled)', '2*y^2 = x^3 - x'],
   ['y² + x²y = x³ + 1  (quartic model)', 'y^2 + x^2*y = x^3 + 1'], ['y² = x⁴ − 3x² + x + 1  (quartic)', 'y^2 = x^4 - 3x^2 + x + 1'],
   ['y² = x⁵ + 1  (genus 2)', 'y^2 = x^5 + 1', 'dev'], ['y² = x²(x + 1)  (nodal cubic)', 'y^2 = x^2*(x+1)', 'dev'], ['x³ + y³ = 1  (not Weierstrass)', 'x^3 + y^3 = 1', 'dev'],
 ];

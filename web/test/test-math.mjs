@@ -28,10 +28,14 @@ check('beyond the tables', (await Cremona.lookup('999999a1')).missing === true);
   let n = 0, bad = 0;
   for (const N in shard) for (const [cl, ll, curves] of shard[N]) for (let i = 0; i < curves.length; i++) {
     const a = await Cremona.lookup(`${N}${cl}${i + 1}`), b = await Cremona.lookup(`${N}.${ll}${curves[i][0]}`);
-    n++; if (!a || !b || a.lmfdb !== b.lmfdb || a.cremona !== b.cremona || a.ainvs.join() !== curves[i].slice(1).join()) bad++;
+    n++; if (!a || !b || a.lmfdb !== b.lmfdb || a.cremona !== b.cremona || a.ainvs.join() !== curves[i].slice(1, 6).join() || !Number.isInteger(a.rank) || !Array.isArray(a.torsion)) bad++;
     if (n >= 20000) break;
   }
   check(`shard ${last.file}: labels round-trip`, n > 1000 && bad === 0, `${bad} bad of ${n}`);
+  const r5077 = await Cremona.lookup('5077a1'), r15 = await Cremona.lookup('15a1'), r108 = await Cremona.lookup('108a1');
+  check('Mordell-Weil: 5077a1 has rank 3, no torsion', r5077.rank === 3 && r5077.torsion.length === 0, JSON.stringify(r5077));
+  check('Mordell-Weil: 15a1 has torsion Z/2 x Z/4', r15.rank === 0 && r15.torsion.join() === '2,4', JSON.stringify(r15));
+  check('Mordell-Weil: 108a1 (y^2 = x^3 + 4) has torsion Z/3', r108.rank === 0 && r108.torsion.join() === '3', JSON.stringify(r108));
   check('index: 50 shards to 499999', idx.shards.length === 50 && idx.max_conductor === 499999 && idx.curves > 3000000, JSON.stringify([idx.shards.length, idx.max_conductor, idx.curves]));
 }
 

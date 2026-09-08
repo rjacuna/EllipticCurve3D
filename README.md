@@ -81,14 +81,17 @@ It takes an LMFDB label (`20.a3`), a Cremona label (`11a1`), a-invariants (`[0,1
 the surface with three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω₂`, `τ` and the number
 of real components, all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in the complex-analysis books).
 
-* **Labels** resolve from Cremona's tables, every curve of conductor up to 499,999 with both label systems:
+* **Labels** resolve from Cremona's tables, every curve of conductor up to 499,999 with both label systems and its Mordell–Weil group:
   3,064,705 curves in `data/cremona/`, split into 50 JSON shards of 10,000 conductors (about 2 MB each, 108 MB
   in all) that are fetched on demand and cached, so a lookup costs one small download. The tables come from
-  John Cremona's [ecdata](https://github.com/JohnCremona/ecdata) (`allcurves` and `alllabels`, Artistic
+  John Cremona's [ecdata](https://github.com/JohnCremona/ecdata) (`allcurves`, `alllabels` and `allgens`, Artistic
   License 2.0); `data/make_cremona.py` rebuilds the shards from a checkout. Sage's bundled database stops at
   conductor 9,999, so this is far more than `EllipticCurve("...")` can resolve locally. Beyond 499,999 the app
   asks for the a-invariants from the LMFDB page. lmfdb.org's API sends no CORS header, so it cannot be queried
   from a browser page, which is why the tables are shipped.
+* **The Mordell–Weil group** is shown under the equation for every curve in the tables, typeset as
+  `E(ℚ) ≅ ℤ^r ⊕ ℤ/n₁ℤ ⊕ …`, the rank and torsion structure from Cremona's `allgens` (the generators are in
+  that file too but are not shipped). A typed equation that is not in the tables says so instead.
 * **Equations** are parsed with exact rational arithmetic. Weierstrass equations are used as given; a scaled one
   such as `2y² = x³ − x` is rescaled to a monic model and the surface drawn in the original coordinates; a
   quartic `y² = f₄(x)` with a real root, or a cubic with an `x²y` term, is brought to Weierstrass form and drawn
