@@ -668,8 +668,9 @@ function analyzeEquation(text) {
       if (m === 4) {
         res.kind = 'elliptic (quartic model)';
         const qm = quarticModel(b, a, h);
-        if (qm) { res.model = qm; res.notes.push(`genus 1: $y'^2 = ${ptex(b)}$ is a quartic; plotted through $x = r + 1/t$ with the real root $r = ${qm.r.toPrecision(6)}$`); }
-        else res.notes.push(`genus 1: $y'^2 = ${ptex(b)}$ is a quartic with no real root, which this plotter does not transform`);
+        if (qm) { res.model = qm; res.notes.push(`genus 1: $y'^2 = ${ptex(b)}$ is a quartic; plotted through $x = r + 1/t$ with the real root $r = ${qm.r.toPrecision(6)}$, as an elliptic curve over $\\mathbb{Q}(r)$`); }
+        else if (b[pdeg(b)].sign() > 0) res.notes.push(`genus 1: $y'^2 = ${ptex(b)}$ is a quartic with no real root but real points everywhere; plotting it through one of them is planned`);
+        else res.notes.push(`genus 1: $y'^2 = ${ptex(b)}$ is a quartic that is negative on $\\mathbb{R}$: no real points, and its complex points need a complex Weierstrass model, which this plotter does not have`);
         return res;
       }
       res.kind = 'hyperelliptic';
