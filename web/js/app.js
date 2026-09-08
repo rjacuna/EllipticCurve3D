@@ -262,7 +262,7 @@ let infoParts = null;                                          // the info line,
 const sliceText = () => mixed(state.slice === 'im' ? 'imaginary slice $(\\Re x, \\Im x, \\Im y)$'
                             : state.slice === 'anim' ? 'rotating $(\\Re x, \\Im x, \\Re y\\cos\\theta + \\Im y\\sin\\theta)$'
                             : 'surface $(\\Re x, \\Im x, \\Re y)$');
-function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText()].join(' · ')); }
+function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText()].join(' | ')); }
 function updateHash(text) { try { history.replaceState(null, '', '#' + (state.slice === 'im' ? 'im:' : state.slice === 'anim' ? 'anim:' : '') + encodeURIComponent(text)); } catch (e) {} }
 // A typed curve is identified up to isomorphism over Q: the tables list minimal models, so the a-invariants are
 // first made integral by (x, y) -> (u^2 x, u^3 y), a_i -> u^i a_i, and then reduced by the same scaling where possible.
@@ -327,7 +327,7 @@ async function plot(text) {
       if (!an.model) {
         const g = an.genus === null ? mixed(`genus $\\le ${an.genusBound}$ (not computed)`) : `genus ${an.genus}`;
         clearSurface(); infoParts = null;
-        setInfo(`<span class="eq">${T(EC3D.btex(an.F) + ' = 0')}</span> — <span class="err">not an elliptic curve I can plot</span>: ${esc(an.kind)}, ${g}. ${an.notes.map(mixed).join(' · ')}`, '');
+        setInfo(`<span class="eq">${T(EC3D.btex(an.F) + ' = 0')}</span> — <span class="err">not an elliptic curve I can plot</span>: ${esc(an.kind)}, ${g}. ${an.notes.map(mixed).join(' | ')}`, '');
         return;
       }
       model = an.model;
