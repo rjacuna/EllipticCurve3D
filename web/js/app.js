@@ -348,8 +348,6 @@ async function plot(text) {
     const inv = model.inv;
     desc.push(T(`\\Delta = ${qtex(inv.disc)},\\; j = ${inv.j === null ? '\\infty' : qtex(inv.j)}`));
     desc.push(T(`\\omega_1 = ${fmt(lattice.w1)},\\ \\omega_2 = ${ctex(lattice.w2)},\\ \\tau = ${ctex(lattice.normalised.tau)}`));
-    desc.push(mixed(lattice.discSign > 0 ? '$\\Delta > 0$: two real components (rows $t = 0$ and $t = \\tfrac12$)' : '$\\Delta < 0$: one real component (row $t = 0$)'));
-    desc.push(mixed(`clipped to $|(x, y)| < ${fmt(state.radius, 3)}$`));
     infoParts = { base: desc };
     renderInfo();
   } catch (e) {
