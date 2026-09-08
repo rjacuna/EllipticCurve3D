@@ -157,17 +157,19 @@ function rebuildSurface() {                                    // the mesh from 
   rebuildDecorations();
   return { mesh: performance.now() - t1, faces: geom.index.count / 3 };
 }
-// The default clipping radius: large enough that the real points are inside the ball (11.a1's start at x = 103),
-// i.e. 1.5 times the distance from the origin to the nearest real point, at least 3, rounded up to 2 digits.
+// The default clipping radius: every real component in view, i.e. 1.5 times the distance from the origin to
+// the farthest real 2-torsion point (the turning points of E(R), at s = 0, +-1/2 on the real rows), at least 3,
+// rounded up to 2 digits.  11.a1's real points start at x = 103, so it gets 160.
 function autoRadius(g) {
   const { n, xs, ys, ok } = g;
-  let r = Infinity;
-  for (const j of [0, n - 1]) for (let i = 0; i < n; i++) {
+  let r = 0;
+  const mid = [Math.floor((n - 1) / 2), Math.ceil((n - 1) / 2)];               // s = 0 (the pole on the row t = 0, so only on t = 1/2)
+  for (const [j, is] of [[0, [0, n - 1]], [n - 1, [0, ...mid, n - 1]]]) for (const i of is) {
     const idx = i * n + j;
     if (!ok[idx] || Math.abs(xs[2 * idx + 1]) > 1e-6 || Math.abs(ys[2 * idx + 1]) > 1e-6) continue;
-    r = Math.min(r, Math.hypot(xs[2 * idx], ys[2 * idx]));
+    r = Math.max(r, Math.hypot(xs[2 * idx], ys[2 * idx]));
   }
-  const R = Math.max(3, isFinite(r) ? 1.5 * r : 0), p = Math.pow(10, Math.floor(Math.log10(R)) - 1);
+  const R = Math.max(3, 1.5 * r), p = Math.pow(10, Math.floor(Math.log10(R)) - 1);
   return Math.ceil(R / p) * p;
 }
 
