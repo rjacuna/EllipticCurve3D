@@ -29,6 +29,12 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 syst
 #topbar .seg button { border: 0; border-radius: 0; padding: 8px 10px; background: transparent; color: var(--muted); }
 #topbar .seg button + button { border-left: 1px solid var(--panel-border); }
 #topbar .seg button.active { background: var(--accent); color: #fff; }
+#animbar { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--muted); }
+#animbar[hidden] { display: none; }
+#animbar button { padding: 3px 9px; font-size: 12px; }
+#animbar input[type=range] { flex: 1 1 140px; min-width: 80px; accent-color: var(--accent); }
+#animbar #speed { flex: 0 1 120px; }
+#animbar .val { color: var(--text); font-variant-numeric: tabular-nums; min-width: 3.2em; }
 #info { flex-basis: 100%; min-width: 0; font-size: 13px; color: var(--muted); min-height: 1.2em; white-space: normal; overflow-wrap: anywhere; }
 #info b { color: var(--text); font-weight: 600; }
 #info .err { color: var(--accent-2); }

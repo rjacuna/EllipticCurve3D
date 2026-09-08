@@ -12,10 +12,17 @@
 <div id="topbar">
   <input id="input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="LMFDB label (20.a3), Cremona label (11a1), a-invariants [0,1,0,-1,0], or y^2 = x^3 + x^2 - x">
   <button id="plot" class="primary">Plot</button>
-  <div class="seg" role="group" aria-label="third coordinate" title="Draw (Re x, Im x, Re y), a neighbourhood of the real points, or the imaginary slice (Re x, Im x, Im y)">
-    <button type="button" data-slice="re" class="active" aria-pressed="true"><span class="tex">\Re\,y</span></button><button type="button" data-slice="im" aria-pressed="false"><span class="tex">\Im\,y</span></button>
+  <div class="seg" role="group" aria-label="third coordinate" title="Draw (Re x, Im x, Re y), a neighbourhood of the real points; the imaginary slice (Re x, Im x, Im y); or rotate between them, z = Re y cos θ + Im y sin θ">
+    <button type="button" data-slice="re" class="active" aria-pressed="true"><span class="tex">\Re\,y</span></button><button type="button" data-slice="im" aria-pressed="false"><span class="tex">\Im\,y</span></button><button type="button" data-slice="anim" aria-pressed="false" title="Rotate the third coordinate between Re y and Im y (Donu Arapura's animation)"><span class="tex">\infty</span></button>
   </div>
   <select id="examples" title="Examples"><option value="">Examples…</option></select>
+  <div id="animbar" hidden>
+    <button id="anim-play" type="button" class="primary" aria-label="pause or play">❚❚</button>
+    <span class="tex">z = \Re y\,\cos\theta + \Im y\,\sin\theta</span>
+    <span class="tex">\theta =</span><span id="v-theta" class="val">0°</span>
+    <input id="theta" type="range" min="0" max="360" step="0.5" value="0" aria-label="theta in degrees">
+    <span class="lbl">speed</span><input id="speed" type="range" min="5" max="180" step="5" aria-label="degrees per second"><span id="v-speed" class="val"></span>
+  </div>
   <div id="info"></div>
 </div>
 <aside id="drawer" aria-label="Options">
