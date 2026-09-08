@@ -129,6 +129,45 @@ function pformat(p, v = 'x') {
   return terms.map(([s, t], k) => (k === 0 ? (s === '-' ? '-' : '') : ' ' + s + ' ') + t).join('');
 }
 function sup(n) { return String(n).replace(/[0-9]/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]); }
+// TeX versions of the formatters, for KaTeX in the web page
+function qtex(c) {                       // a rational (Q) or a number
+  if (c instanceof Q) return c.d === 1n ? c.n.toString() : (c.n < 0n ? '-' : '') + `\\frac{${babs(c.n)}}{${c.d}}`;
+  return Number.isInteger(c) ? String(c) : Number(c.toPrecision(6)).toString();
+}
+function ptex(p, v = 'x') {
+  if (!p.length) return '0';
+  const terms = [];
+  for (let i = pdeg(p); i >= 0; i--) {
+    const c = p[i]; if (c.isZero()) continue;
+    const mag = new Q(babs(c.n), c.d), s = c.sign() < 0 ? '-' : '+';
+    let t = (mag.isOne() && i > 0) ? '' : qtex(mag);
+    if (i > 0) t += v + (i > 1 ? `^{${i}}` : '');
+    terms.push([s, t]);
+  }
+  return terms.map(([s, t], k) => (k === 0 ? (s === '-' ? '-' : '') : ' ' + s + ' ') + t).join('');
+}
+function btex(p) {
+  if (!p.size) return '0';
+  const keys = [...p.keys()].map(k => k.split(',').map(Number)).sort((a, b) => (b[1] - a[1]) || (b[0] - a[0]));
+  const terms = keys.map(([i, j]) => {
+    const c = p.get(bkey(i, j)), mag = new Q(babs(c.n), c.d);
+    let t = (mag.isOne() && (i || j)) ? '' : qtex(mag);
+    if (i) t += 'x' + (i > 1 ? `^{${i}}` : '');
+    if (j) t += 'y' + (j > 1 ? `^{${j}}` : '');
+    return [c.sign() < 0 ? '-' : '+', t];
+  });
+  return terms.map(([s, t], k) => (k === 0 ? (s === '-' ? '-' : '') : ' ' + s + ' ') + t).join('');
+}
+function formatWeierstrassTeX(a) {      // a: Q[] or numbers -> "y^2 + xy + y = x^3 - x^2 - 10x - 20"
+  const term = (c, mono) => {
+    const q = c instanceof Q;
+    if (q ? c.isZero() : c === 0) return '';
+    const neg = q ? c.sign() < 0 : c < 0, mag = q ? new Q(babs(c.n), c.d) : Math.abs(c), one = q ? mag.isOne() : mag === 1;
+    return (neg ? ' - ' : ' + ') + (one && mono ? '' : qtex(mag)) + mono;
+  };
+  const [a1, a2, a3, a4, a6] = a;
+  return 'y^2' + term(a1, 'xy') + term(a3, 'y') + ' = x^3' + term(a2, 'x^2') + term(a4, 'x') + term(a6, '');
+}
 
 // ------------------------------------------------- bivariate polynomials (Map 'i,j' -> Q)
 function bkey(i, j) { return i + ',' + j; }
@@ -583,10 +622,10 @@ function analyzeEquation(text) {
   const d = res.totalDeg;
   res.genusBound = Math.max(0, (d - 1) * (d - 2) / 2);
   const dy = res.degY;
-  if (dy <= 0) { res.kind = 'degenerate'; res.notes.push('no y in the equation: this is a union of vertical lines, not a curve to plot'); return res; }
+  if (dy <= 0) { res.kind = 'degenerate'; res.notes.push('no $y$ in the equation: this is a union of vertical lines, not a curve to plot'); return res; }
   if (dy === 1) {
     res.kind = 'rational'; res.genus = 0;
-    res.notes.push('linear in y: a rational curve (genus 0), y = -C(x)/A(x)');
+    res.notes.push('linear in $y$: a rational curve (genus 0), $y = -C(x)/A(x)$');
     return res;
   }
   if (dy === 2) {
@@ -604,44 +643,44 @@ function analyzeEquation(text) {
         const m = modelFromAinvs(aQ, { k: kn, toOriginal: (X, Y) => [[X[0] / kn, X[1] / kn], [Y[0] / kn, Y[1] / kn]] });
         m.scaled = !k.isOne();
         if (m.singular) { res.kind = 'singular cubic'; res.genus = 0; res.model = m;
-          res.notes.push('Weierstrass cubic with discriminant 0: a nodal or cuspidal cubic, genus 0'); return res; }
+          res.notes.push('Weierstrass cubic with $\\Delta = 0$: a nodal or cuspidal cubic, genus 0'); return res; }
         res.kind = 'weierstrass'; res.genus = 1; res.model = m;
-        if (m.scaled) res.notes.push(`leading coefficient ${k} of the cubic: plotted via X = ${k}·x, Y = ${k}·y`);
+        if (m.scaled) res.notes.push(`leading coefficient $${qtex(k)}$ of the cubic: plotted via $X = ${qtex(k)}\\,x,\\ Y = ${qtex(k)}\\,y$`);
         return res;
       }
       // complete the square: (y + h/2)^2 = g(x) = f + h^2/4
       const g = padd(f, pscale(pmul(h, h), new Q(1n, 4n)));
-      if (!g.length) { res.kind = 'degenerate'; res.notes.push('the equation is a perfect square (y + h(x)/2)² = 0: a double curve'); return res; }
+      if (!g.length) { res.kind = 'degenerate'; res.notes.push('the equation is a perfect square $(y + h(x)/2)^2 = 0$: a double curve'); return res; }
       const { a, b } = squarefreeParts(g);
       const m = pdeg(b);
       res.completedSquare = { g, a, b };
       res.singular = pdeg(a) > 0;
-      if (m <= 0) { res.kind = 'reducible'; res.notes.push('(y + h/2)² = c·a(x)²: two rational components'); res.genus = 0; return res; }
+      if (m <= 0) { res.kind = 'reducible'; res.notes.push('$(y + h/2)^2 = c\\,a(x)^2$: two rational components'); res.genus = 0; return res; }
       res.genus = m <= 2 ? 0 : Math.floor((m - 1) / 2);
-      if (res.singular) res.notes.push(`singular: (y + h/2)² = a(x)²·b(x) with a = ${pformat(a)}; the smooth model is y'² = b(x)`);
+      if (res.singular) res.notes.push(`singular: $(y + h/2)^2 = a(x)^2\\,b(x)$ with $a = ${ptex(a)}$; the smooth model is $y'^2 = b(x)$`);
       if (m <= 2) { res.kind = 'rational'; res.notes.push('genus 0: rational curve'); return res; }
       if (m === 3) {
         res.kind = 'elliptic (cubic model)';
         res.model = scaledCubicModel(b, a, h);
-        res.notes.push(`smooth model y'² = ${pformat(b)} with y' = (y + (${pformat(h)})/2)` + (res.singular ? `/(${pformat(a)})` : ''));
+        res.notes.push(`smooth model $y'^2 = ${ptex(b)}$ with $y' = ` + (h.length ? `\\bigl(y + \\tfrac{${ptex(h)}}{2}\\bigr)` : 'y') + (res.singular ? `/(${ptex(a)})` : '') + '$');
         return res;
       }
       if (m === 4) {
         res.kind = 'elliptic (quartic model)';
         const qm = quarticModel(b, a, h);
-        if (qm) { res.model = qm; res.notes.push(`genus 1: y'² = ${pformat(b)} is a quartic; plotted through x = r + 1/t with the real root r = ${qm.r.toPrecision(6)}`); }
-        else res.notes.push(`genus 1: y'² = ${pformat(b)} is a quartic with no real root, which this plotter does not transform`);
+        if (qm) { res.model = qm; res.notes.push(`genus 1: $y'^2 = ${ptex(b)}$ is a quartic; plotted through $x = r + 1/t$ with the real root $r = ${qm.r.toPrecision(6)}$`); }
+        else res.notes.push(`genus 1: $y'^2 = ${ptex(b)}$ is a quartic with no real root, which this plotter does not transform`);
         return res;
       }
       res.kind = 'hyperelliptic';
-      res.notes.push(`hyperelliptic of genus ${res.genus}: y'² = ${pformat(b)} has degree ${m}`);
+      res.notes.push(`hyperelliptic of genus ${res.genus}: $y'^2 = ${ptex(b)}$ has degree ${m}`);
       return res;
     }
-    res.notes.push('quadratic in y with a non-constant coefficient of y²');
+    res.notes.push('quadratic in $y$ with a non-constant coefficient of $y^2$');
   }
   // general plane curve: only the arithmetic genus bound without singularity analysis
   res.kind = 'plane';
-  res.notes.push(`plane curve of degree ${d}: genus ≤ ${res.genusBound} (equality iff the projective closure is smooth)`);
+  res.notes.push(`plane curve of degree ${d}: genus $\\le ${res.genusBound}$ (equality iff the projective closure is smooth)`);
   return res;
 }
 
@@ -769,7 +808,7 @@ function realComponents(grid, radius) {
   return comps;
 }
 
-return { Q, parsePolynomial, analyzeEquation, parseInput, invariantsQ, invariantsNum, formatWeierstrass, bformat, pformat,
+return { Q, parsePolynomial, analyzeEquation, parseInput, invariantsQ, invariantsNum, formatWeierstrass, formatWeierstrassTeX, bformat, btex, pformat, ptex, qtex,
          periodLattice, normalisePeriods, reduceTau, makeWp, cubicRootsExact, refineRootExact, toNormalisedCoords, modelFromAinvs, buildGrid, realComponents,
          lookupLabel, findByAinvs, buildLabelMaps, squarefreeParts, polyRootsNum, cubicRoots, agm,
          _poly: { padd, psub, pmul, pdivmod, pgcd, pderiv, ptrim, pdeg } };

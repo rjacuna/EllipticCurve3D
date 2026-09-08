@@ -72,7 +72,8 @@ Checks: `sage -python run_doctests.py` (81 doctests) and `sage verify.sage`.
 
 `web/dist/index.html` is the whole app in one file: open it directly or host it anywhere. It takes an LMFDB
 label (`20.a3`), a Cremona label (`11a1`), a-invariants (`[0,1,0,-1,0]`), or an equation, draws the surface with
-three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω₂`, `τ` and the number of real components.
+three.js, and reports the equation, labels, conductor, `Δ`, `j`, `ω₁`, `ω₂`, `τ` and the number of real components,
+all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in the complex-analysis books).
 
 * Labels resolve from an offline table of every curve of conductor below 10000 from Sage's copy of Cremona's
   tables, with both label systems (`web/src/curves-data.js`, 64,687 curves). lmfdb.org's API sends no CORS
@@ -101,7 +102,7 @@ Development layout, assembled by `python3 web/build.py` (add `--dev` for the ext
 | `web/src/ec3d-math.js` | parsing, invariants, genus, period lattice by the AGM (a port of Sage's `_compute_periods_real` and `normalise_periods`), `℘` by the q-series, the grid, real components |
 | `web/src/app.js`, `app.css`, `body.html`, `index.template.html` | viewer and UI |
 | `web/src/curves-data.js`, `colormaps.js` | the label table and 64-sample matplotlib colormaps |
-| `web/vendor/` | three.js r128 and OrbitControls, vendored so the page works offline |
+| `web/vendor/` | three.js r128, OrbitControls and KaTeX 0.16.11 (with the fonts it needs), vendored so the page works offline; the single-file build embeds the fonts |
 | `web/index.html` | development page loading the files above separately; `python3 -m http.server -d web` |
 | `web/dist/index.html`, `dist/artifact.html` | the single-file build, and the same without the document wrapper |
 | `web/test/test-math.mjs` | `node web/test/test-math.mjs`: 8,238 checks of the JavaScript against Sage/PARI values in `vectors.json` (made by `make_vectors.sage`) |

@@ -108,12 +108,15 @@ function buildRealCurves(comps) {
   }
   return grp;
 }
-function makeLabel(text, x, y, z) {
-  const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d'), pr = 2, fs = 22;
-  ctx.font = `${fs}px system-ui, sans-serif`;
-  const w = Math.ceil(ctx.measureText(text).width) + 8, h = fs + 8;
+const SERIF = '"STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif';
+function makeLabel(sym, variable, x, y, z) {                 // e.g. ℜ x: the Fraktur symbol upright, the variable in italics
+  const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d'), pr = 2, fs = 24;
+  const f1 = `${fs}px ${SERIF}`, f2 = `italic ${fs}px ${SERIF}`;
+  ctx.font = f1; const w1 = ctx.measureText(sym + ' ').width; ctx.font = f2; const w2 = ctx.measureText(variable).width;
+  const w = Math.ceil(w1 + w2) + 8, h = fs + 10;
   canvas.width = w * pr; canvas.height = h * pr; ctx.scale(pr, pr);
-  ctx.font = `${fs}px system-ui, sans-serif`; ctx.fillStyle = '#222'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, w / 2, h / 2);
+  ctx.fillStyle = '#222'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = f1; ctx.fillText(sym + ' ', 4, h / 2); ctx.font = f2; ctx.fillText(variable, 4 + w1, h / 2);
   const tex = new THREE.Texture(canvas); tex.needsUpdate = true;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, depthWrite: false, transparent: true }));
   sp.position.set(x, y, z); sp.scale.set(w / 700, h / 700, 1);
@@ -122,7 +125,7 @@ function makeLabel(text, x, y, z) {
 function buildAxes(R) {
   const grp = new THREE.Group();
   grp.add(new THREE.AxesHelper(1.15 * R));
-  grp.add(makeLabel('Re x', 1.3 * R, 0, 0)); grp.add(makeLabel('Im x', 0, 1.3 * R, 0)); grp.add(makeLabel(state.slice === 'im' ? 'Im y' : 'Re y', 0, 0, 1.3 * R));
+  grp.add(makeLabel('ℜ', 'x', 1.3 * R, 0, 0)); grp.add(makeLabel('ℑ', 'x', 0, 1.3 * R, 0)); grp.add(makeLabel(state.slice === 'im' ? 'ℑ' : 'ℜ', 'y', 0, 0, 1.3 * R));
   return grp;
 }
 function rebuildDecorations() {
@@ -202,7 +205,7 @@ function drawLatticePlot() {
   const half = [[0, 0], [w1, 0], [w1 + w2[0] / 2, w2[1] / 2], [w2[0] / 2, w2[1] / 2]].map(p => toPx(p[0], p[1]));
   lctx.beginPath(); half.forEach((p, i) => (i ? lctx.lineTo : lctx.moveTo).call(lctx, p[0], p[1])); lctx.closePath(); lctx.stroke();
   lctx.setLineDash([]);
-  lctx.fillStyle = text; lctx.font = 'bold 22px system-ui, sans-serif'; lctx.textBaseline = 'middle';
+  lctx.fillStyle = text; lctx.font = `italic 24px ${SERIF}`; lctx.textBaseline = 'middle';
   const label = (txt, x, y, dx, dy) => { const p = toPx(x, y); lctx.beginPath(); lctx.arc(p[0], p[1], 5, 0, 2 * Math.PI); lctx.fill(); lctx.fillText(txt, p[0] + dx, p[1] + dy); };
   label('0', 0, 0, 10, 16); label('ω₁', w1, 0, 10, 16); label('ω₂', w2[0], w2[1], -34, -14); label('ω₁+ω₂', w1 + w2[0], w2[1], 10, -14);
 }
@@ -215,10 +218,17 @@ function clearSurface() {
 // ------------------------------------------------------------------ input handling
 const fmt = (v, d = 5) => (Math.abs(v) < 1e-12 ? '0' : Number(v.toPrecision(d)).toString());
 const cfmt = z => { const re = fmt(z[0]), im = fmt(Math.abs(z[1])); if (Math.abs(z[1]) < 1e-12) return re; if (Math.abs(z[0]) < 1e-12) return (z[1] < 0 ? '-' : '') + im + 'i'; return `${re} ${z[1] < 0 ? '-' : '+'} ${im}i`; };
+// KaTeX: T renders TeX, mixed renders "text $tex$ text", qtex/ctex format numbers for TeX
+const T = tex => katex.renderToString(tex, { throwOnError: false, output: 'html' });
+const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const mixed = str => String(str).split('$').map((part, i) => i % 2 ? T(part) : esc(part)).join('');
+const qtex = v => (v instanceof EC3D.Q) ? EC3D.qtex(v) : fmt(v);
+const ctex = z => { const re = fmt(z[0]), im = fmt(Math.abs(z[1])); if (Math.abs(z[1]) < 1e-12) return re; if (Math.abs(z[0]) < 1e-12) return (z[1] < 0 ? '-' : '') + im + '\\,i'; return `${re} ${z[1] < 0 ? '-' : '+'} ${im}\\,i`; };
+for (const el of document.querySelectorAll('.tex')) katex.render(el.textContent, el, { throwOnError: false, output: 'html' });
 function setInfo(html, cls) { const el = $('info'); el.innerHTML = html; el.className = cls || ''; }
 let infoParts = null;                                          // the info line, re-rendered when the slice changes
-const sliceText = () => state.slice === 'im' ? 'imaginary slice (Re x, Im x, Im y)' : 'surface (Re x, Im x, Re y)';
-function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText(), infoParts.timing].join(' · ')); }
+const sliceText = () => mixed(state.slice === 'im' ? 'imaginary slice $(\\Re x, \\Im x, \\Im y)$' : 'surface $(\\Re x, \\Im x, \\Re y)$');
+function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText()].join(' · ')); }
 function updateHash(text) { try { history.replaceState(null, '', '#' + (state.slice === 'im' ? 'im:' : '') + encodeURIComponent(text)); } catch (e) {} }
 function nextFrame() { return new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); }
 
@@ -234,44 +244,42 @@ async function plot(text) {
     if (parsed.error) throw new Error(parsed.error);
     if (parsed.type === 'label' || parsed.type === 'ainvs') {
       const m = EC3D.modelFromAinvs(parsed.ainvs);
-      if (m.singular) throw new Error(`singular Weierstrass cubic (Δ = 0): ${EC3D.formatWeierstrass(parsed.ainvs)}`);
+      if (m.singular) throw new Error(`singular Weierstrass cubic ($\\Delta = 0$): $${EC3D.formatWeierstrassTeX(parsed.ainvs)}$`);
       model = m;
       const rec = parsed.rec || EC3D.findByAinvs(parsed.ainvs.map(v => Number(v.toString())), CURVE_TABLE);
-      desc.push(`<b>${EC3D.formatWeierstrass(parsed.ainvs)}</b>`);
-      if (rec) desc.push(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`);
+      desc.push(`<span class="eq">${T(EC3D.formatWeierstrassTeX(parsed.ainvs))}</span>`);
+      if (rec) desc.push(esc(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`));
     } else {
       const an = parsed.analysis;
       if (!an.model) {
-        const g = an.genus === null ? `genus ≤ ${an.genusBound} (not computed)` : `genus ${an.genus}`;
-        clearSurface();
-        setInfo(`<b>${an.pretty}</b> — <span class="err">not an elliptic curve I can plot</span>: ${an.kind}, ${g}. ${an.notes.join(' · ')}`, '');
+        const g = an.genus === null ? mixed(`genus $\\le ${an.genusBound}$ (not computed)`) : `genus ${an.genus}`;
+        clearSurface(); infoParts = null;
+        setInfo(`<span class="eq">${T(EC3D.btex(an.F) + ' = 0')}</span> — <span class="err">not an elliptic curve I can plot</span>: ${esc(an.kind)}, ${g}. ${an.notes.map(mixed).join(' · ')}`, '');
         return;
       }
       model = an.model;
-      desc.push(`<b>${an.pretty.replace(/ = 0$/, '')} = 0</b>`);
+      desc.push(`<span class="eq">${T(EC3D.btex(an.F) + ' = 0')}</span>`);
       if (an.kind === 'weierstrass' && model.ainvsQ) {
         const rec = EC3D.findByAinvs(model.ainvsQ.map(v => Number(v.toString())), CURVE_TABLE);
-        if (rec) desc.push(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`);
-      } else desc.push(an.kind);
-      desc.push(...an.notes);
+        if (rec) desc.push(esc(`${rec.cremona} = ${rec.lmfdb}, conductor ${rec.conductor}`));
+      } else desc.push(esc(an.kind));
+      desc.push(...an.notes.map(mixed));
     }
     lattice = EC3D.periodLattice(model.ainvs, model.inv.disc instanceof EC3D.Q ? model.inv.disc.sign() : undefined, model.ainvsQ || undefined);
-    const tWp = computeGrid();
+    computeGrid();
     setRadius(autoRadius(gridData));                          // per curve: the real points must be inside the ball
-    const timing = rebuildSurface();
+    rebuildSurface();
     drawLatticePlot();
     resetView();
     const inv = model.inv;
-    const discStr = inv.disc instanceof EC3D.Q ? inv.disc.toString() : fmt(inv.disc);
-    const jStr = inv.j === null ? '∞' : (inv.j instanceof EC3D.Q ? inv.j.toString() : fmt(inv.j));
-    desc.push(`Δ = ${discStr}, j = ${jStr}`);
-    desc.push(`ω₁ = ${fmt(lattice.w1)}, ω₂ = ${cfmt(lattice.w2)}, τ = ${cfmt(lattice.normalised.tau)}`);
-    desc.push(lattice.discSign > 0 ? 'Δ > 0: two real components (rows t = 0 and t = ½)' : 'Δ < 0: one real component (row t = 0)');
-    desc.push(`clipped to |(x, y)| < ${fmt(state.radius, 3)}`);
-    infoParts = { base: desc, timing: `<span class="ok">${timing.faces.toLocaleString()} triangles in ${(tWp + timing.mesh).toFixed(0)} ms</span>` };
+    desc.push(T(`\\Delta = ${qtex(inv.disc)},\\; j = ${inv.j === null ? '\\infty' : qtex(inv.j)}`));
+    desc.push(T(`\\omega_1 = ${fmt(lattice.w1)},\\ \\omega_2 = ${ctex(lattice.w2)},\\ \\tau = ${ctex(lattice.normalised.tau)}`));
+    desc.push(mixed(lattice.discSign > 0 ? '$\\Delta > 0$: two real components (rows $t = 0$ and $t = \\tfrac12$)' : '$\\Delta < 0$: one real component (row $t = 0$)'));
+    desc.push(mixed(`clipped to $|(x, y)| < ${fmt(state.radius, 3)}$`));
+    infoParts = { base: desc };
     renderInfo();
   } catch (e) {
-    clearSurface(); infoParts = null; setInfo(`<span class="err">${e.message}</span>`, '');
+    clearSurface(); infoParts = null; setInfo(`<span class="err">${mixed(e.message)}</span>`, '');
   } finally { $('busy').hidden = true; requestRender(); }
 }
 

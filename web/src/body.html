@@ -3,7 +3,7 @@
   <input id="input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="LMFDB label (20.a3), Cremona label (11a1), a-invariants [0,1,0,-1,0], or y^2 = x^3 + x^2 - x">
   <button id="plot" class="primary">Plot</button>
   <div class="seg" role="group" aria-label="third coordinate" title="Draw (Re x, Im x, Re y), a neighbourhood of the real points, or the imaginary slice (Re x, Im x, Im y)">
-    <button type="button" data-slice="re" class="active" aria-pressed="true">Re y</button><button type="button" data-slice="im" aria-pressed="false">Im y</button>
+    <button type="button" data-slice="re" class="active" aria-pressed="true"><span class="tex">\Re\,y</span></button><button type="button" data-slice="im" aria-pressed="false"><span class="tex">\Im\,y</span></button>
   </div>
   <select id="examples" title="Examples"><option value="">Examples…</option></select>
   <div id="info"></div>
@@ -21,7 +21,7 @@
       <label>Inner cutoff <span class="val" id="v-cutoff"></span><input id="cutoff" type="range" min="0" max="6" step="0.05"></label>
       <label>Opacity <span class="val" id="v-opacity"></span><input id="opacity" type="range" min="0.05" max="1" step="0.05"></label>
       <h3>Show</h3>
-      <label>Real points E(ℝ) (red) <input id="real" type="checkbox"></label>
+      <label><span class="name">Real points <span class="tex">E(\mathbb R)</span> (red)</span><input id="real" type="checkbox"></label>
       <label>Real-point thickness (× radius) <span class="val" id="v-thick"></span><input id="thick" type="range" min="0.001" max="0.02" step="0.001"></label>
       <label>Whole torus (mirror half) <input id="mirror" type="checkbox"></label>
       <label>Axes <input id="axes" type="checkbox"></label>
@@ -30,9 +30,9 @@
     </section>
     <section id="section-color" hidden>
       <h3>Lattice coloring</h3>
-      <p class="help">The surface is colored by the lattice coordinates of z = s·ω₁ + t·ω₂: dark where s or t is a multiple of 1/n. Below, a piece of the z-plane with the period parallelogram spanned by ω₁, ω₂; the surface is its half 0 ≤ t ≤ ½ (with the mirror half, all of it).</p>
+      <p class="help">The surface is colored by the lattice coordinates of <span class="tex">z = s\,\omega_1 + t\,\omega_2</span>: dark where <span class="tex">s</span> or <span class="tex">t</span> is a multiple of <span class="tex">1/n</span>. Below, a piece of the <span class="tex">z</span>-plane with the period parallelogram spanned by <span class="tex">\omega_1, \omega_2</span>; the surface is its half <span class="tex">0 \le t \le \tfrac12</span> (with the mirror half, all of it).</p>
       <canvas id="lattice-plot" width="552" height="340"></canvas>
-      <label>Subdivisions n (lines at k·ω/n) <span class="val" id="v-lines"></span><input id="lines" type="range" min="1" max="32" step="1"></label>
+      <label><span class="name">Subdivisions <span class="tex">n</span> (lines at <span class="tex">k\,\omega/n</span>)</span><span class="val" id="v-lines"></span><input id="lines" type="range" min="1" max="32" step="1"></label>
       <label>Line softness <span class="val" id="v-soft"></span><input id="soft" type="range" min="0.03" max="0.6" step="0.01"></label>
       <label>Colormap <select id="colormap"></select></label>
     </section>
