@@ -92,8 +92,12 @@ function buildSurfaceGeometry(g) {
 function buildRealCurves(comps) {
   const grp = new THREE.Group();
   for (const comp of comps) {
-    const pts = comp.map(p => new THREE.Vector3(p[0], p[1], p[2]));
-    const closed = pts.length > 3 && pts[0].distanceTo(pts[pts.length - 1]) < 1e-9;
+    const pts = [];
+    for (const p of comp) {                                       // no repeated points: they pinch the tube
+      const v = new THREE.Vector3(p[0], p[1], p[2]);
+      if (!pts.length || pts[pts.length - 1].distanceTo(v) > 1e-9 * (1 + v.length())) pts.push(v);
+    }
+    const closed = pts.length > 3 && pts[0].distanceTo(pts[pts.length - 1]) < 1e-9 * (1 + pts[0].length());
     if (closed) pts.pop();
     if (pts.length < 2) continue;
     const curve = new THREE.CatmullRomCurve3(pts, closed, 'centripetal');

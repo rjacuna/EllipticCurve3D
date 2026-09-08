@@ -744,16 +744,27 @@ function realComponents(grid, radius) {
     let cur = [];
     const flush = () => { if (cur.length > 1) comps.push(cur); cur = []; };
     let prev = null;
+    const before = comps.length;
     for (const i of order) {
       const idx = i * n + j;
       const p = ok[idx] ? [xs[2 * idx], 0, ys[2 * idx]] : null;
       if (!p || Math.hypot(p[0], p[2]) > radius) { flush(); prev = null; continue; }
-      if (prev && Math.hypot(p[0] - prev[0], p[2] - prev[2]) > 0.5 * radius) { flush(); }
+      if (prev) {
+        const d = Math.hypot(p[0] - prev[0], p[2] - prev[2]);
+        if (d > 0.5 * radius) flush();
+        // s = 1/2 and s = -1/2 are the same point of the torus (a 2-torsion point, on the x-axis): a zero-length
+        // segment there would break the tube's frames, so a repeated point is skipped
+        else if (d <= 1e-9 * (1 + Math.hypot(p[0], p[2]))) continue;
+      }
       cur.push(p); prev = p;
     }
     flush();
-    // close the oval (row t = 1/2 when s = -1/2 and s = 1/2 coincide)
-    if (j === n - 1 && comps.length && cnt === n) { const c = comps[comps.length - 1]; if (c.length === n) c.push(c[0]); }
+    // close the oval: on the row t = 1/2 every point is real, and the walk is one loop
+    if (j === n - 1 && cnt === n && comps.length === before + 1) {
+      const c = comps[comps.length - 1], l = c[c.length - 1];
+      if (Math.hypot(l[0] - c[0][0], l[2] - c[0][2]) <= 1e-9 * (1 + Math.hypot(l[0], l[2]))) c.pop();   // s = 1/2 repeats s = -1/2
+      c.push(c[0]);
+    }
   }
   return comps;
 }
