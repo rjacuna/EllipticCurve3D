@@ -124,8 +124,9 @@ of real components, all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in th
   boundary is an embedded trefoil, drawn as a tube of the real points' thickness (`EC3D.knotCurve` samples it along
   rays from the pole in the `z`-plane). The depth `d`, a fraction of the radius, is by default the least at which
   the tube keeps one diameter clear of itself, found by sampling the knot and measuring (`EC3D.autoKnotDepth`);
-  the slider sets it by hand and "auto" gives it back. The real rows are cut at `|P| = R(1 − d/2)` to match. Links
-  read `#knot:20.a3`, `#anim+knot:…`. The Sage module does not have this mode.
+  the slider sets it by hand and "auto" gives it back. The real rows are cut at `|P| = R(1 − d/2)` to match. The mode
+  is off when the app opens; Copy link includes it (`#knot:20.a3`, `#anim+knot:…`) and such a link turns it on, but the
+  address bar does not carry it. The Sage module does not have this mode.
 * The clipping radius has no upper bound (logarithmic slider plus a number field) and is chosen per curve:
   1.5 times the distance from the origin to the nearest real point, at least 3, so that E(ℝ) is always in view.
   For `11.a1` the real points start at x ≈ 103, so its default radius is 160.

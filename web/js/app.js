@@ -303,12 +303,16 @@ const sliceText = () => mixed(state.slice === 'im' ? 'imaginary slice $(\\Re x, 
                             : state.slice === 'anim' ? 'rotating $(\\Re x, \\Im x, \\Re y\\cos\\theta + \\Im y\\sin\\theta)$'
                             : 'surface $(\\Re x, \\Im x, \\Re y)$');
 function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText()].join(' | ')); }
-function updateHash(text) {                                   // #flag+flag:input, the flags being the view (im, anim) and knot
+// #flag+flag:input, the flags being the view (im, anim) and knot.  The address bar carries the view but not the knot
+// mode, so the app opens with the knot off unless a link asks for it; Copy link includes it.
+function hashFor(text, withKnot) {
   const flags = [];
   if (state.slice === 'im') flags.push('im'); else if (state.slice === 'anim') flags.push('anim');
-  if (state.knot) flags.push('knot');
-  try { history.replaceState(null, '', '#' + (flags.length ? flags.join('+') + ':' : '') + encodeURIComponent(text)); } catch (e) {}
+  if (withKnot && state.knot) flags.push('knot');
+  return '#' + (flags.length ? flags.join('+') + ':' : '') + encodeURIComponent(text);
 }
+function updateHash(text) { try { history.replaceState(null, '', hashFor(text, false)); } catch (e) {} }
+function shareLink() { return location.origin + location.pathname + location.search + (lastText ? hashFor(lastText, true) : location.hash); }
 // A typed curve is identified up to isomorphism over Q: the tables list minimal models, so the a-invariants are
 // first made integral by (x, y) -> (u^2 x, u^3 y), a_i -> u^i a_i, and then reduced by the same scaling where possible.
 function integralModel(aQ) {
@@ -503,7 +507,6 @@ function setKnot(on) {
   state.knot = on; $('knot').checked = on; uniforms.uKnot.value = on ? 1 : 0;
   $('depth-row').hidden = !on; $('cutoff-row').hidden = on;
   refreshDepth(); if (gridData) rebuildDecorations();
-  if (lastText) updateHash(lastText);
   requestRender();
 }
 $('knot').addEventListener('change', () => setKnot($('knot').checked));
@@ -514,7 +517,7 @@ $('depth-auto').addEventListener('click', () => { state.depthAuto = true; refres
 applyDepth(state.depth);
 $('reset').addEventListener('click', resetView);
 $('snapshot').addEventListener('click', () => { renderer.render(scene, camera); const a = document.createElement('a'); a.href = renderer.domElement.toDataURL('image/png'); a.download = 'elliptic-curve-3d.png'; document.body.appendChild(a); a.click(); a.remove(); });
-$('share').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; setTimeout(() => $('share').textContent = 'Copy link', 1200); } catch (e) { prompt('Link:', location.href); } });
+$('share').addEventListener('click', async () => { const url = shareLink(); try { await navigator.clipboard.writeText(url); $('share').textContent = 'Copied'; setTimeout(() => $('share').textContent = 'Copy link', 1200); } catch (e) { prompt('Link:', url); } });
 setTimeout(() => { $('hint').hidden = true; }, 9000);
 
 Cremona.ensure(11).catch(() => {});                              // warm the first shard: examples and curve identification
