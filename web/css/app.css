@@ -63,6 +63,9 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 syst
 #panel label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; margin: 6px 0; font-size: 13px; }
 #panel label input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
 #panel label input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+#panel label[hidden] { display: none; }
+#panel button.mini { padding: 1px 7px; font-size: 11px; border-radius: 6px; margin-left: 6px; }
+#panel button.mini.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 #panel label select { min-width: 0; max-width: 100%; }
 #panel .val { color: var(--muted); font-variant-numeric: tabular-nums; }
 #panel .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }

@@ -35,7 +35,9 @@
       <h3>Surface</h3>
       <label>Grid points per side <span class="val" id="v-grid"></span><input id="grid" type="range" min="100" max="800" step="50"></label>
       <label>Clipping radius <span class="val"><input id="radius-num" type="number" min="0.1" step="any" aria-label="clipping radius"></span><input id="radius" type="range" min="-0.3" max="4.3" step="0.01" aria-label="clipping radius (logarithmic)"></label>
-      <label>Inner cutoff <span class="val" id="v-cutoff"></span><input id="cutoff" type="range" min="0" max="6" step="0.05"></label>
+      <label id="cutoff-row">Inner cutoff <span class="val" id="v-cutoff"></span><input id="cutoff" type="range" min="0" max="6" step="0.05"></label>
+      <label title="Cut the surface along the knot at infinity (the trefoil) instead of the clipping sphere: where the boundary would cross itself one strand dips inward, by the depth">Knot boundary <input id="knot" type="checkbox"></label>
+      <label id="depth-row" hidden title="How far the inner strand dips below the clipping sphere, as a fraction of the radius; auto is the least that keeps the tube one diameter clear of itself">Knot depth (× radius) <span class="val"><span id="v-depth"></span><button id="depth-auto" type="button" class="mini">auto</button></span><input id="depth" type="range" min="0.001" max="0.5" step="0.001"></label>
       <label>Opacity <span class="val" id="v-opacity"></span><input id="opacity" type="range" min="0.05" max="1" step="0.05"></label>
       <h3>Show</h3>
       <label><span class="name">Real points <span class="tex">E(\mathbb R)</span> (red)</span><input id="real" type="checkbox"></label>

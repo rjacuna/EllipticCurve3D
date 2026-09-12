@@ -110,11 +110,22 @@ of real components, all typeset with KaTeX (`ℜ` and `ℑ` in Fraktur, as in th
   the complex conjugate, so in the imaginary slice it is reflected in both `Im x` and `Im y`. A link to the
   imaginary slice reads `#im:20.a3`.
 * Controls live in a drawer that slides in from the left, below the top bar, with two tabs on its edge.
-  **Surface**: grid size, clipping radius and inner cutoff (done in the shader), opacity, the real points and their
-  thickness, the mirror half (on by default, so the whole torus is shown), axes, the clipping sphere, PNG export
-  and a shareable link. **Coloring**: a picture of the z-plane colored the same way as the surface, with the period
+  **Surface**: grid size, clipping radius and inner cutoff (done in the shader), the knot boundary and its depth,
+  opacity, the real points and their thickness, the mirror half (on by default, so the whole torus is shown), axes,
+  the clipping sphere, PNG export and a shareable link. **Coloring**: a picture of the z-plane colored the same way as the surface, with the period
   parallelogram outlined and the drawn half dashed, the subdivision count n (dark lines where s or t is a multiple
   of 1/n), the line softness and the colormap.
+* **Knot boundary** cuts the surface along the knot at infinity instead of the clipping sphere. The projected torus
+  runs into itself along `Re y = 0` (`z` and `−z` have the same `x` and opposite `y`), so the boundary `|P| = R` of
+  the clipped picture crosses itself: near the pole the surface is the cusp `y² ≈ 4x³`, whose link is the trefoil,
+  and the boundary is that trefoil with its three crossings collapsed. Cutting instead at `|P| ≤ R (1 − d·m)` with
+  `m = (1 + Im y/|y|)/2` (`y` rotated by θ in the other views) lifts them: where two sheets meet, `m` is 0 on one
+  and 1 on the other, so one strand of the boundary passes at `|P| = R` and the other at `|P| = R(1 − d)`, and the
+  boundary is an embedded trefoil, drawn as a tube of the real points' thickness (`EC3D.knotCurve` samples it along
+  rays from the pole in the `z`-plane). The depth `d`, a fraction of the radius, is by default the least at which
+  the tube keeps one diameter clear of itself, found by sampling the knot and measuring (`EC3D.autoKnotDepth`);
+  the slider sets it by hand and "auto" gives it back. The real rows are cut at `|P| = R(1 − d/2)` to match. Links
+  read `#knot:20.a3`, `#anim+knot:…`. The Sage module does not have this mode.
 * The clipping radius has no upper bound (logarithmic slider plus a number field) and is chosen per curve:
   1.5 times the distance from the origin to the nearest real point, at least 3, so that E(ℝ) is always in view.
   For `11.a1` the real points start at x ≈ 103, so its default radius is 160.

@@ -15,6 +15,26 @@ function check(name, ok, detail = '') { if (ok) pass++; else { fail++; failures.
 const relerr = (a, b) => Math.abs(a - b) / Math.max(1e-300, Math.abs(b), 1);
 const crel = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) / Math.max(1, Math.hypot(b[0], b[1]));
 
+// ---- the knot boundary ----
+{ // on 20.a3 with the clipping radius 3: at depth 0 the boundary is the sphere cut and meets itself; at the automatic
+  // depth it is an embedded curve of surface points between the sphere and the inner cutoff, one diameter clear of itself
+  const model = EC3D.modelFromAinvs([0, 1, 0, -1, 0].map(v => Q.of(v)));
+  const lat = EC3D.periodLattice(model.ainvs, 1, model.ainvsQ), wp = EC3D.makeWp(lat), R = 3, tube = 0.004 * R;
+  const flat = EC3D.knotCurve(model, lat, wp, { radius: R, depth: 0, count: 360 });
+  const onSphere = [...Array(360).keys()].every(k => Math.abs(Math.hypot(flat.pts[3 * k], flat.pts[3 * k + 1], flat.pts[3 * k + 2]) - R) < 1e-5 * R);
+  check('knot: at depth 0 the boundary lies on the clipping sphere', onSphere);
+  check('knot: at depth 0 the boundary meets itself', EC3D.knotClearance(flat) < 1e-3 * R, String(EC3D.knotClearance(flat)));
+  const d = EC3D.autoKnotDepth(model, lat, wp, R, tube);
+  const kc = EC3D.knotCurve(model, lat, wp, { radius: R, depth: d, count: 720 }), c = EC3D.knotClearance(kc);
+  check('knot: the automatic depth keeps the tube one diameter clear', c >= 4 * tube && c <= 1.3 * 4 * tube, `d = ${d}, clearance ${c}, wanted ${4 * tube}`);
+  const onSurface = [...Array(720).keys()].every(k => { const p = EC3D.surfacePoint(model, lat, wp, kc.st[2 * k], kc.st[2 * k + 1]); return p && Math.abs(p[0][0] - kc.pts[3 * k]) < 1e-9 && Math.abs(p[1][0] - kc.pts[3 * k + 2]) < 1e-9; });
+  check('knot: the samples are points of the surface', onSurface);
+  const between = [...Array(720).keys()].every(k => { const r = Math.hypot(kc.pts[3 * k], kc.pts[3 * k + 1], kc.pts[3 * k + 2]); return r <= R * (1 + 1e-6) && r >= R * (1 - d) * (1 - 1e-6); });
+  check('knot: between the sphere and the inner cutoff R(1 - d)', between);
+  const seeded = EC3D.knotCurve(model, lat, wp, { radius: R, depth: d, theta: 0.01, count: 360, prev: kc.rho });
+  check('knot: a seeded sample at a nearby θ stays close', Math.max(...[...Array(360).keys()].map(k => Math.abs(seeded.rho[k] - kc.rho[2 * k]) / kc.rho[2 * k])) < 0.05);
+}
+
 // ---- labels ----
 for (const c of V.curves) {
   const r1 = await Cremona.lookup(c.label), r2 = await Cremona.lookup(c.lmfdb);

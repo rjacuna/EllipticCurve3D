@@ -703,11 +703,19 @@ function parseInput(text) {
 //   pos  (3 floats per vertex): (Re x, Im x, Re y) in the ORIGINAL coordinates,
 //   uv   (2 floats per vertex): (s, t) for the lattice coloring,
 //   ok   (1 byte per vertex):   0 at the pole / non-finite points.
+function surfacePoint(model, lat, wp, s, t) {                   // the point at z = s w1 + t w2: [x, y] (complex pairs) in the original coordinates, null at the pole
+  const [m, nn] = toNormalisedCoords(lat, s, t);
+  const w = wp(m, nn);
+  if (!w) return null;
+  const [a1, , a3] = model.ainvs, b2 = lat.inv.b2, P = w[0], dP = w[1];
+  const X = [P[0] - b2 / 12, P[1]];
+  const Y = [(dP[0] - a1 * X[0] - a3) / 2, (dP[1] - a1 * X[1]) / 2];
+  const [x, y] = model.toOriginal(X, Y);
+  return isFinite(x[0]) && isFinite(x[1]) && isFinite(y[0]) && isFinite(y[1]) ? [x, y] : null;
+}
 function buildGrid(model, n, lattice, nterms = 10) {
   const lat = lattice || periodLattice(model.ainvs, model.inv.disc instanceof Q ? model.inv.disc.sign() : undefined, model.ainvsQ || undefined);
   const wp = makeWp(lat, nterms);
-  const [a1, , a3] = model.ainvs;
-  const b2 = lat.inv.b2;
   const pos = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), ok = new Uint8Array(n * n);
   const xs = new Float64Array(n * n * 2), ys = new Float64Array(n * n * 2);       // double precision copies (for the real curves)
   let idx = 0;
@@ -716,14 +724,9 @@ function buildGrid(model, n, lattice, nterms = 10) {
     for (let j = 0; j < n; j++, idx++) {
       const t = 0.5 * j / (n - 1);
       uv[2 * idx] = s; uv[2 * idx + 1] = t;
-      const [m, nn] = toNormalisedCoords(lat, s, t);
-      const w = wp(m, nn);
-      if (!w) continue;
-      const P = w[0], dP = w[1];
-      const X = [P[0] - b2 / 12, P[1]];
-      const Y = [(dP[0] - a1 * X[0] - a3) / 2, (dP[1] - a1 * X[1]) / 2];
-      const [x, y] = model.toOriginal(X, Y);
-      if (!isFinite(x[0]) || !isFinite(x[1]) || !isFinite(y[0]) || !isFinite(y[1])) continue;
+      const p = surfacePoint(model, lat, wp, s, t);
+      if (!p) continue;
+      const [x, y] = p;
       pos[3 * idx] = x[0]; pos[3 * idx + 1] = x[1]; pos[3 * idx + 2] = y[0];
       xs[2 * idx] = x[0]; xs[2 * idx + 1] = x[1]; ys[2 * idx] = y[0]; ys[2 * idx + 1] = y[1];
       ok[idx] = 1;
@@ -773,8 +776,103 @@ function realComponents(grid, radius) {
   return comps;
 }
 
+// ---------------------------------------------------------------- the knot boundary
+// With the third coordinate Z = Re(y e^{-iθ}) the projected torus runs into itself along Z = 0: z and -z have the
+// same x and opposite y.  The boundary |P| = R of the clipped picture crosses that double curve, so it is not an
+// embedded curve: near the pole the surface is the cusp y² ≈ 4x³, whose link is the trefoil, and the boundary is
+// that trefoil with its three crossings collapsed.  Cutting instead at
+//     |P| <= R (1 - d m),   m = (1 + Im(y e^{-iθ}) / |y|) / 2,
+// lifts them: where two sheets meet, m is 0 on one and 1 on the other (Im y changes sign with y), so one strand of
+// the boundary passes at |P| = R and the other at |P| = R (1 - d), a distance R d apart -- an embedded trefoil.
+// knotCurve samples it by directions in the z-plane around the pole: on the ray z = ρ e^{iφ}, the first ρ with
+// |P| / (1 - d m) <= R.  `prev` (radii from an earlier sample, e.g. at a nearby θ) seeds the search.
+// Returns the points (Re x, Im x, Z), the lattice coordinates (s, t) and the radii ρ, in the order of φ.
+function knotCurve(model, lat, wp, { radius, depth, theta = 0, count = 720, prev = null }) {
+  const w1 = lat.w1, w2 = lat.w2, cs = Math.cos(theta), sn = Math.sin(theta);
+  const pts = new Float64Array(3 * count), st = new Float64Array(2 * count), rho = new Float64Array(count);
+  const scale = Math.min(w1, Math.hypot(w2[0], w2[1]));
+  let cz = 1, sz = 0;
+  const at = r => { const t = r * sz / w2[1]; return [(r * cz - t * w2[0]) / w1, t]; };
+  const inside = r => { const [s, t] = at(r); return Math.abs(s) <= 0.5 && Math.abs(t) <= 0.5; };
+  const value = r => {                                              // |P| / (1 - d m); Infinity at the pole
+    const [s, t] = at(r), p = surfacePoint(model, lat, wp, s, t);
+    if (!p) return Infinity;
+    const [x, y] = p, Z = cs * y[0] + sn * y[1], W = cs * y[1] - sn * y[0], ay = Math.hypot(Z, W);
+    return Math.hypot(x[0], x[1], Z) / (1 - depth * (ay > 0 ? 0.5 * (1 + W / ay) : 0.5));
+  };
+  let guess = 0;
+  for (let k = 0; k < count; k++) {
+    const phi = 2 * Math.PI * k / count; cz = Math.cos(phi); sz = Math.sin(phi);
+    const g = prev ? prev[Math.floor(k * prev.length / count)] : (guess || 1e-3 * scale);
+    let a = g / 1.1, b = g * 1.1;
+    while (!(value(a) > radius) && a > 1e-12 * scale) a /= 1.5;         // the pole is inside: |P| -> ∞ there
+    while (value(b) > radius && inside(b)) b *= 1.5;                    // march out until the cut, or the edge of the cell
+    for (let i = 0; i < 60 && b - a > 1e-8 * b; i++) { const c = 0.5 * (a + b); if (value(c) > radius) a = c; else b = c; }
+    rho[k] = guess = b;
+    const [s, t] = at(b), p = surfacePoint(model, lat, wp, s, t) || [[0, 0], [0, 0]];
+    pts[3 * k] = p[0][0]; pts[3 * k + 1] = p[0][1]; pts[3 * k + 2] = cs * p[1][0] + sn * p[1][1];
+    st[2 * k] = s; st[2 * k + 1] = t;
+  }
+  return { count, pts, st, rho, theta, radius, depth };
+}
+// The distance between two segments (Ericson, Real-Time Collision Detection, 5.1.9).
+function segmentDistance(p1, q1, p2, q2) {
+  const d1 = [q1[0] - p1[0], q1[1] - p1[1], q1[2] - p1[2]], d2 = [q2[0] - p2[0], q2[1] - p2[1], q2[2] - p2[2]];
+  const r = [p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]];
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], clamp = v => Math.min(1, Math.max(0, v));
+  const a = dot(d1, d1), e = dot(d2, d2), f = dot(d2, r), EPS = 1e-300;
+  let s, t;
+  if (a <= EPS && e <= EPS) { s = t = 0; }
+  else if (a <= EPS) { s = 0; t = clamp(f / e); }
+  else {
+    const c = dot(d1, r);
+    if (e <= EPS) { t = 0; s = clamp(-c / a); }
+    else {
+      const b = dot(d1, d2), denom = a * e - b * b;
+      s = denom !== 0 ? clamp((b * f - c * e) / denom) : 0;
+      t = (b * s + f) / e;
+      if (t < 0) { t = 0; s = clamp(-c / a); } else if (t > 1) { t = 1; s = clamp((b - c) / a); }
+    }
+  }
+  return Math.hypot(p1[0] + d1[0] * s - p2[0] - d2[0] * t, p1[1] + d1[1] * s - p2[1] - d2[1] * t, p1[2] + d1[2] * s - p2[2] - d2[2] * t);
+}
+// How close the knot comes to itself: the least distance between segments of the closed polyline at least an
+// eighth of the way round from each other (the crossings are half-way round).
+function knotClearance(kc) {
+  const N = kc.count, P = kc.pts, skip = Math.ceil(N / 8);
+  const pt = i => { i = ((i % N) + N) % N; return [P[3 * i], P[3 * i + 1], P[3 * i + 2]]; };
+  let best = Infinity;
+  for (let i = 0; i < N; i++) {
+    const p1 = pt(i), q1 = pt(i + 1);
+    for (let j = i + skip; j <= i + N - skip; j++) { const d = segmentDistance(p1, q1, pt(j), pt(j + 1)); if (d < best) best = d; }
+  }
+  return best;
+}
+// The least depth at which a tube of the given radius along the knot keeps one diameter clear of itself, for each
+// of the given θ.  The strands' distance at a crossing is about R d, so a few rounds of scaling d by wanted/found
+// settle it; the answer is the largest over the θ.
+function autoKnotDepth(model, lat, wp, radius, tubeRadius, thetas = [0]) {
+  const want = 4 * tubeRadius * 1.05;
+  let best = 0;
+  for (const theta of thetas) {
+    let d = Math.min(0.5, Math.max(1e-3, want / radius)), prev = null;
+    for (let i = 0; i < 8; i++) {
+      const kc = knotCurve(model, lat, wp, { radius, depth: d, theta, count: 360, prev });
+      prev = kc.rho;
+      const found = knotClearance(kc);
+      if (found >= want && found <= 1.1 * want) break;
+      const next = Math.min(0.5, Math.max(1e-3, d * want / Math.max(found, 0.05 * want)));
+      if (next === d) break;
+      d = next;
+    }
+    best = Math.max(best, d);
+  }
+  return best;
+}
+
 return { Q, parsePolynomial, analyzeEquation, parseInput, invariantsQ, invariantsNum, formatWeierstrass, formatWeierstrassTeX, bformat, btex, pformat, ptex, qtex,
          periodLattice, normalisePeriods, reduceTau, makeWp, cubicRootsExact, refineRootExact, toNormalisedCoords, modelFromAinvs, buildGrid, realComponents,
+         surfacePoint, knotCurve, knotClearance, autoKnotDepth, segmentDistance,
          squarefreeParts, polyRootsNum, cubicRoots, agm,
          _poly: { padd, psub, pmul, pdivmod, pgcd, pderiv, ptrim, pdeg } };
 });

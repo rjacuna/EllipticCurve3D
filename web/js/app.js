@@ -5,9 +5,9 @@ const $ = id => document.getElementById(id);
 const isMobile = matchMedia('(max-width: 640px)').matches || navigator.maxTouchPoints > 1;
 
 const state = { grid: isMobile ? 250 : 400, radius: 3, cutoff: 0, opacity: 0.95, lines: 3, soft: 0.33, colormap: 'Greens_r',
-                real: true, thick: 0.004, mirror: true, axes: true, sphere: false,
+                real: true, thick: 0.004, mirror: true, axes: true, sphere: false, knot: false, depth: 0.02, depthAuto: true,
                 slice: 're', theta: 0, playing: false, speed: 30 };     // third coordinate: Re y (θ = 0), Im y (θ = π/2), or rotating
-let model = null, lattice = null, gridData = null, curveInfo = null, lastText = '';
+let model = null, lattice = null, wpFn = null, gridData = null, curveInfo = null, lastText = '';
 
 // ------------------------------------------------------------------ scene
 const view = $('view');
@@ -28,12 +28,14 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(4, -5, -7); scene.add(fill);
 
 let dirty = true;
+let knotMesh = null, knotPrev = null, knotDirty = false;              // the knot boundary's tube, the radii of its last sample (seeds the next), and whether θ moved it
 function requestRender() { dirty = true; }
 let lastFrame = performance.now();
 (function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   if (state.playing) setTheta(state.theta + state.speed * Math.PI / 180 * dt);
+  if (knotDirty) rebuildKnot(true);                            // the knot moves with θ
   const moved = controls.update();
   if (moved || dirty) { renderer.render(scene, camera); dirty = false; }
 })(lastFrame);
@@ -61,8 +63,10 @@ setColormap(state.colormap);
 // and yim = Im y, so Re y (θ = 0), Im y (θ = π/2) and the rotation between them need no rebuild.  The normal is the cross
 // product of the surface's tangent vectors dS, dT (finite differences of (Re x, Im x, Re y, Im y) along the grid), mixed
 // the same way, so lighting is exact at every θ.  The mirror half (the complex conjugate) has uMirrorY = -1.
-// Also here: the lattice coloring and the spherical clipping.
-const uniforms = { uRadius: { value: state.radius }, uCutoff: { value: state.cutoff }, uLines: { value: state.lines }, uSoft: { value: state.soft }, uColormap: { value: cmapTex } };
+// Also here: the lattice coloring and the clipping -- by the sphere |P| < R (and |P| >= cutoff), or in knot mode by
+// |P| <= R (1 - d m) with m = (1 + Im(y e^{-iθ})/|y|)/2, which turns the boundary into an embedded trefoil (see
+// EC3D.knotCurve); vW carries Im(y e^{-iθ}) for it.
+const uniforms = { uRadius: { value: state.radius }, uCutoff: { value: state.cutoff }, uKnot: { value: 0 }, uDepth: { value: state.depth }, uLines: { value: state.lines }, uSoft: { value: state.soft }, uColormap: { value: cmapTex } };
 const thetaUniform = { value: 0 };
 function makeSurfaceMaterial(mirrorY) {
   const m = new THREE.MeshPhongMaterial({ side: THREE.DoubleSide, transparent: true, opacity: state.opacity, depthWrite: state.opacity >= 1,
@@ -70,12 +74,12 @@ function makeSurfaceMaterial(mirrorY) {
   m.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms, { uTheta: thetaUniform, uMirrorY: { value: mirrorY } });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 st;\nattribute float yim;\nattribute vec4 dS;\nattribute vec4 dT;\nuniform float uTheta;\nuniform float uMirrorY;\nvarying vec2 vST;\nvarying vec3 vPos;')
+      .replace('#include <common>', '#include <common>\nattribute vec2 st;\nattribute float yim;\nattribute vec4 dS;\nattribute vec4 dT;\nuniform float uTheta;\nuniform float uMirrorY;\nvarying vec2 vST;\nvarying vec3 vPos;\nvarying float vW;')
       .replace('#include <beginnormal_vertex>', 'float cs = cos(uTheta), sn = sin(uTheta) * uMirrorY;\nvec3 tS = vec3(dS.x, dS.y, cs * dS.z + sn * dS.w);\nvec3 tT = vec3(dT.x, dT.y, cs * dT.z + sn * dT.w);\nvec3 objectNormal = normalize(cross(tS, tT));')
-      .replace('#include <begin_vertex>', 'vec3 transformed = vec3(position.x, position.y, cs * position.z + sn * yim);\nvST = st;\nvPos = transformed;');
+      .replace('#include <begin_vertex>', 'vec3 transformed = vec3(position.x, position.y, cs * position.z + sn * yim);\nvST = st;\nvPos = transformed;\nvW = uMirrorY * yim * cs - position.z * sin(uTheta);');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform float uCutoff;\nuniform float uLines;\nuniform float uSoft;\nuniform sampler2D uColormap;\nvarying vec2 vST;\nvarying vec3 vPos;')
-      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n{ float rr = length(vPos); if (rr > uRadius || rr < uCutoff) discard; }')
+      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform float uCutoff;\nuniform float uKnot;\nuniform float uDepth;\nuniform float uLines;\nuniform float uSoft;\nuniform sampler2D uColormap;\nvarying vec2 vST;\nvarying vec3 vPos;\nvarying float vW;')
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n{ float rr = length(vPos);\n  if (uKnot > 0.5) { float ay = sqrt(vPos.z * vPos.z + vW * vW); float m = ay > 0.0 ? 0.5 * (1.0 + vW / ay) : 0.5; if (rr > uRadius * (1.0 - uDepth * m)) discard; }\n  else if (rr > uRadius || rr < uCutoff) discard; }')
       .replace('#include <color_fragment>', '#include <color_fragment>\n{ float c = pow(abs(sin(3.14159265358979 * vST.x * uLines) * sin(3.14159265358979 * vST.y * uLines)), uSoft);\n  diffuseColor.rgb = texture2D(uColormap, vec2(c, 0.5)).rgb; }');
   };
   m.customProgramCacheKey = () => 'ec3d-surface';
@@ -83,6 +87,7 @@ function makeSurfaceMaterial(mirrorY) {
 }
 const surfaceMaterial = makeSurfaceMaterial(1), mirrorMaterial = makeSurfaceMaterial(-1);
 const realMaterial = new THREE.MeshPhongMaterial({ color: 0xc8281e, shininess: 40, specular: new THREE.Color(0x442222) });
+const knotMaterial = new THREE.MeshPhongMaterial({ color: 0x2d4f9e, shininess: 40, specular: new THREE.Color(0x222244) });
 
 // ------------------------------------------------------------------ scene objects
 const group = new THREE.Group(); scene.add(group);
@@ -137,6 +142,37 @@ function buildRealCurves(comps) {
   }
   return grp;
 }
+// The knot boundary as a tube of the real points' thickness.  Without the mirror half only the arc in the drawn
+// half (t >= 0, the first half of the samples) exists.  `fast` (while the rotation plays) takes fewer samples and
+// starts from the previous ones.
+function rebuildKnot(fast) {
+  if (knotMesh) { group.remove(knotMesh); knotMesh.geometry.dispose(); knotMesh = null; }
+  knotDirty = false;
+  if (!state.knot || !gridData) return;
+  const kc = EC3D.knotCurve(model, lattice, wpFn, { radius: state.radius, depth: state.depth, theta: state.theta, count: fast ? 360 : 720, prev: fast ? knotPrev : null });
+  knotPrev = kc.rho;
+  const N = kc.count, closed = state.mirror, keep = closed ? N : N / 2 + 1, pts = [];
+  for (let k = 0; k < keep; k++) {
+    const v = new THREE.Vector3(kc.pts[3 * k], kc.pts[3 * k + 1], kc.pts[3 * k + 2]);
+    if (!pts.length || pts[pts.length - 1].distanceTo(v) > 1e-9 * (1 + v.length())) pts.push(v);
+  }
+  if (pts.length < 2) return;
+  const curve = new THREE.CatmullRomCurve3(pts, closed, 'centripetal');
+  knotMesh = new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length, state.thick * state.radius, 8, closed), knotMaterial);
+  group.add(knotMesh); requestRender();
+}
+// The depth of the knot: by default the least at which the tube keeps one diameter clear of itself, at the θ shown
+// (or a few θ over the half-turn when the rotation plays); the slider makes it manual, "auto" gives it back.
+function autoDepth() {
+  const thetas = state.slice === 'anim' ? [0, 1, 2, 3, 4, 5].map(k => k * Math.PI / 6) : [state.theta];
+  return EC3D.autoKnotDepth(model, lattice, wpFn, state.radius, state.thick * state.radius, thetas);
+}
+function applyDepth(d, manual) {
+  state.depth = d; if (manual) state.depthAuto = false;
+  uniforms.uDepth.value = d; $('depth').value = d; $('v-depth').textContent = d.toFixed(3);
+  $('depth-auto').classList.toggle('active', state.depthAuto);
+}
+function refreshDepth() { if (state.knot && state.depthAuto && gridData) applyDepth(autoDepth()); }
 const SERIF = '"STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif';
 function makeLabel(sym, variable, x, y, z) {                 // e.g. ℜ x: the Fraktur symbol upright, the variable in italics
   const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d'), pr = 2, fs = 24;
@@ -167,8 +203,10 @@ function rebuildDecorations() {
   sphereMesh.visible = state.sphere; group.add(sphereMesh);
   if (gridData) {
     if (realGroup) group.remove(realGroup);
-    realGroup = buildRealCurves(EC3D.realComponents(gridData, R)); realGroup.visible = state.real && state.slice === 're'; group.add(realGroup);
+    // in knot mode the real rows (y real, m = 1/2) are cut at |P| = R (1 - d/2)
+    realGroup = buildRealCurves(EC3D.realComponents(gridData, state.knot ? R * (1 - state.depth / 2) : R)); realGroup.visible = state.real && state.slice === 're'; group.add(realGroup);
   }
+  rebuildKnot(false);
   requestRender();
 }
 function computeGrid() {                                       // wp on the grid; returns the time taken
@@ -244,6 +282,7 @@ function drawLatticePlot() {
 function clearSurface() {
   if (surfaceMesh) { group.remove(surfaceMesh); group.remove(mirrorMesh); surfaceMesh = mirrorMesh = null; }
   if (realGroup) { group.remove(realGroup); realGroup = null; }
+  if (knotMesh) { group.remove(knotMesh); knotMesh = null; }
   gridData = null; requestRender();
 }
 
@@ -264,7 +303,12 @@ const sliceText = () => mixed(state.slice === 'im' ? 'imaginary slice $(\\Re x, 
                             : state.slice === 'anim' ? 'rotating $(\\Re x, \\Im x, \\Re y\\cos\\theta + \\Im y\\sin\\theta)$'
                             : 'surface $(\\Re x, \\Im x, \\Re y)$');
 function renderInfo() { if (infoParts) setInfo([...infoParts.base, sliceText()].join(' | ')); }
-function updateHash(text) { try { history.replaceState(null, '', '#' + (state.slice === 'im' ? 'im:' : state.slice === 'anim' ? 'anim:' : '') + encodeURIComponent(text)); } catch (e) {} }
+function updateHash(text) {                                   // #flag+flag:input, the flags being the view (im, anim) and knot
+  const flags = [];
+  if (state.slice === 'im') flags.push('im'); else if (state.slice === 'anim') flags.push('anim');
+  if (state.knot) flags.push('knot');
+  try { history.replaceState(null, '', '#' + (flags.length ? flags.join('+') + ':' : '') + encodeURIComponent(text)); } catch (e) {}
+}
 // A typed curve is identified up to isomorphism over Q: the tables list minimal models, so the a-invariants are
 // first made integral by (x, y) -> (u^2 x, u^3 y), a_i -> u^i a_i, and then reduced by the same scaling where possible.
 function integralModel(aQ) {
@@ -342,7 +386,9 @@ async function plot(text) {
     }
     lattice = EC3D.periodLattice(model.ainvs, model.inv.disc instanceof EC3D.Q ? model.inv.disc.sign() : undefined, model.ainvsQ || undefined);
     computeGrid();
+    wpFn = EC3D.makeWp(lattice);
     setRadius(autoRadius(gridData));                          // per curve: the real points must be inside the ball
+    refreshDepth();
     rebuildSurface();
     drawLatticePlot();
     resetView();
@@ -383,6 +429,7 @@ function setTheta(v) {
   state.theta = v; thetaUniform.value = v;
   const deg = v * 180 / Math.PI;
   thetaSlider.value = deg.toFixed(1); $('v-theta').textContent = deg.toFixed(0) + '°';
+  if (state.knot) knotDirty = true;
   dirty = true;
 }
 function setPlaying(on) { state.playing = on; playButton.textContent = on ? '❚❚' : '▶'; playButton.setAttribute('aria-label', on ? 'pause' : 'play'); }
@@ -394,7 +441,7 @@ function setSlice(v, silent) {
   else if (v === 'im') { setTheta(Math.PI / 2); setPlaying(false); }
   else setPlaying(true);
   if (silent) return;
-  if (gridData) { rebuildDecorations(); renderInfo(); }
+  if (gridData) { refreshDepth(); rebuildDecorations(); renderInfo(); }
   if (lastText) updateHash(lastText);
   requestRender();
 }
@@ -429,7 +476,7 @@ function bindRange(id, key, show, onChange) {
 bindRange('grid', 'grid', v => v, kind => { if (kind === 'change' && model) { $('busy').hidden = false; setTimeout(() => { computeGrid(); rebuildSurface(); $('busy').hidden = true; requestRender(); }, 20); } });
 bindRange('cutoff', 'cutoff', v => v.toFixed(2), () => { uniforms.uCutoff.value = state.cutoff; requestRender(); });
 bindRange('opacity', 'opacity', v => v.toFixed(2), () => { for (const m of [surfaceMaterial, mirrorMaterial]) { m.opacity = state.opacity; m.depthWrite = state.opacity >= 1; } requestRender(); });
-bindRange('thick', 'thick', v => v.toFixed(3), kind => { if (kind === 'change') rebuildDecorations(); });
+bindRange('thick', 'thick', v => v.toFixed(3), kind => { if (kind === 'change') { refreshDepth(); rebuildDecorations(); } });
 bindRange('lines', 'lines', v => v, () => { uniforms.uLines.value = state.lines; scheduleLatticePlot(); requestRender(); });
 bindRange('soft', 'soft', v => v.toFixed(2), () => { uniforms.uSoft.value = state.soft; scheduleLatticePlot(); requestRender(); });
 // the clipping radius has no upper bound: a logarithmic slider plus a free number field
@@ -441,7 +488,7 @@ function setRadius(R, from) {
   uniforms.uRadius.value = R; $('cutoff').max = R; if (state.cutoff > R) { state.cutoff = 0; $('cutoff').value = 0; uniforms.uCutoff.value = 0; $('v-cutoff').textContent = '0.00'; }
   requestRender();
 }
-function radiusChanged() { if (!gridData) return; if (50 * state.radius > builtBig) rebuildSurface(); else rebuildDecorations(); }
+function radiusChanged() { if (!gridData) return; refreshDepth(); if (50 * state.radius > builtBig) rebuildSurface(); else rebuildDecorations(); }
 radiusSlider.addEventListener('input', () => setRadius(Math.pow(10, +radiusSlider.value), 'slider'));
 radiusSlider.addEventListener('change', radiusChanged);
 radiusNum.addEventListener('change', () => { setRadius(radiusNum.value, 'num'); radiusChanged(); });
@@ -451,6 +498,20 @@ bindCheck('real', 'real', () => { if (realGroup) realGroup.visible = state.real 
 bindCheck('mirror', 'mirror', () => { if (mirrorMesh) mirrorMesh.visible = state.mirror; });
 bindCheck('axes', 'axes', () => { if (axesGroup) axesGroup.visible = state.axes; });
 bindCheck('sphere', 'sphere', () => { if (sphereMesh) sphereMesh.visible = state.sphere; });
+// the knot boundary replaces the sphere and the inner cutoff; its depth has a slider and an automatic setting
+function setKnot(on) {
+  state.knot = on; $('knot').checked = on; uniforms.uKnot.value = on ? 1 : 0;
+  $('depth-row').hidden = !on; $('cutoff-row').hidden = on;
+  refreshDepth(); if (gridData) rebuildDecorations();
+  if (lastText) updateHash(lastText);
+  requestRender();
+}
+$('knot').addEventListener('change', () => setKnot($('knot').checked));
+const depthSlider = $('depth');
+depthSlider.addEventListener('input', () => { applyDepth(+depthSlider.value, true); requestRender(); });
+depthSlider.addEventListener('change', () => { if (gridData) rebuildDecorations(); });
+$('depth-auto').addEventListener('click', () => { state.depthAuto = true; refreshDepth(); if (gridData) rebuildDecorations(); });
+applyDepth(state.depth);
 $('reset').addEventListener('click', resetView);
 $('snapshot').addEventListener('click', () => { renderer.render(scene, camera); const a = document.createElement('a'); a.href = renderer.domElement.toDataURL('image/png'); a.download = 'elliptic-curve-3d.png'; document.body.appendChild(a); a.click(); a.remove(); });
 $('share').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; setTimeout(() => $('share').textContent = 'Copy link', 1200); } catch (e) { prompt('Link:', location.href); } });
@@ -459,7 +520,11 @@ setTimeout(() => { $('hint').hidden = true; }, 9000);
 Cremona.ensure(11).catch(() => {});                              // warm the first shard: examples and curve identification
 if (DEV) window.EC3D_DEBUG = { state, render: () => renderer.render(scene, camera), setTheta, canvas: renderer.domElement };   // for tests
 let initial = decodeURIComponent((location.hash || '').slice(1));
-if (initial.startsWith('im:')) { initial = initial.slice(3); setSlice('im', true); }
-else if (initial.startsWith('anim:')) { initial = initial.slice(5); setSlice('anim', true); }
+{ const colon = initial.indexOf(':');
+  if (colon > 0 && /^[a-z+]+$/.test(initial.slice(0, colon))) {
+    const flags = initial.slice(0, colon).split('+'); initial = initial.slice(colon + 1);
+    if (flags.includes('im')) setSlice('im', true); else if (flags.includes('anim')) setSlice('anim', true);
+    if (flags.includes('knot')) setKnot(true);
+  } }
 plot(initial || '20.a3');
 })();
